@@ -1,6 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Eraser,
+  FlipHorizontal,
+  PaintBucket,
+  Pencil,
+  Pipette,
+  RotateCw,
+  Square,
+  Trash2,
+} from "lucide-react";
 
 type PlayerId = "p1" | "p2";
 type Screen = "menu" | "cover" | "pick" | "build" | "battle" | "rules";
@@ -504,13 +518,13 @@ function PixelEditor({
     <div className="pixelEditor">
       <div className="toolStrip" aria-label="Herramientas de dibujo">
         {([
-          ["pencil", "lapiz"],
-          ["eraser", "goma"],
-          ["fill", "relleno"],
-          ["picker", "color"],
-        ] as [PaintTool, string][]).map(([value, label]) => (
-          <button key={value} className={tool === value ? "active" : ""} onClick={() => setTool(value)}>
-            {label}
+          ["pencil", "lapiz", Pencil],
+          ["eraser", "goma", Eraser],
+          ["fill", "relleno", PaintBucket],
+          ["picker", "cuentagotas", Pipette],
+        ] as [PaintTool, string, typeof Pencil][]).map(([value, label, Icon]) => (
+          <button key={value} className={tool === value ? "active" : ""} onClick={() => setTool(value)} title={label} aria-label={label}>
+            <Icon size={18} strokeWidth={2.6} />
           </button>
         ))}
       </div>
@@ -552,17 +566,35 @@ function PixelEditor({
             />
           ))}
         </div>
-        <button className="toolButton" onClick={() => onChange([...emptyArt])}>limpiar</button>
-        <button className="toolButton" onClick={outline}>contorno</button>
-        <button className="toolButton" onClick={frame}>marco</button>
-        <button className="toolButton" onClick={mirror}>espejo</button>
-        <button className="toolButton" onClick={rotate}>rotar</button>
+        <button className="toolButton" onClick={() => onChange([...emptyArt])} title="limpiar" aria-label="limpiar">
+          <Trash2 size={17} strokeWidth={2.6} />
+        </button>
+        <button className="toolButton" onClick={outline} title="contorno" aria-label="contorno">
+          <Square size={17} strokeWidth={2.6} />
+        </button>
+        <button className="toolButton" onClick={frame} title="marco" aria-label="marco">
+          <Square size={17} strokeWidth={3.2} />
+        </button>
+        <button className="toolButton" onClick={mirror} title="espejo" aria-label="espejo">
+          <FlipHorizontal size={17} strokeWidth={2.6} />
+        </button>
+        <button className="toolButton" onClick={rotate} title="rotar" aria-label="rotar">
+          <RotateCw size={17} strokeWidth={2.6} />
+        </button>
       </div>
       <div className="nudgeTools" aria-label="Mover dibujo">
-        <button onClick={() => shift(0, -1)}>arriba</button>
-        <button onClick={() => shift(-1, 0)}>izq</button>
-        <button onClick={() => shift(1, 0)}>der</button>
-        <button onClick={() => shift(0, 1)}>abajo</button>
+        <button onClick={() => shift(0, -1)} title="arriba" aria-label="arriba">
+          <ArrowUp size={17} strokeWidth={2.6} />
+        </button>
+        <button onClick={() => shift(-1, 0)} title="izquierda" aria-label="izquierda">
+          <ArrowLeft size={17} strokeWidth={2.6} />
+        </button>
+        <button onClick={() => shift(1, 0)} title="derecha" aria-label="derecha">
+          <ArrowRight size={17} strokeWidth={2.6} />
+        </button>
+        <button onClick={() => shift(0, 1)} title="abajo" aria-label="abajo">
+          <ArrowDown size={17} strokeWidth={2.6} />
+        </button>
       </div>
     </div>
   );
@@ -582,14 +614,11 @@ function CardView({
   const label = card.kind === "attack" ? card.tier : `${card.tier} defensa`;
   const badge = card.kind === "attack" ? card.tier.slice(0, 1).toUpperCase() : "D";
   const mechanic = card.kind === "attack" ? attackLabels[card.behavior] : defenseLabels[card.behavior];
-  const icon = card.kind === "attack" ? card.behavior : card.behavior;
-  const blank = card.art.every((pixel) => !pixel);
   return (
     <button className={`card ${card.owner} ${card.kind} ${card.kind === "attack" ? card.tier : card.tier} ${active ? "active" : ""} ${spent ? "spent" : ""}`} onClick={onClick}>
       <span className="cardRibbon">{label}</span>
       <span className={spent ? "cardUsed" : "cardCost"}>{spent ? "usada" : badge}</span>
-      <span className={`cardArtFrame ${blank ? "blank" : ""}`}>
-        <span className={`aiIcon ${icon}`} aria-hidden="true" />
+      <span className="cardArtFrame">
         <PixelSprite art={card.art} />
       </span>
       <span className="cardName">{card.name}</span>
@@ -671,18 +700,6 @@ function CardEditor({
                 <button key={name as string} onClick={() => applyTemplate(template as PixelArt)}>
                   {name as string}
                 </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="aiAssetPanel">
-            <span>iconos ia</span>
-            <div className="aiIconGrid" aria-hidden="true">
-              {(selected.kind === "attack"
-                ? Object.keys(attackLabels)
-                : Object.keys(defenseLabels)
-              ).map((value) => (
-                <i key={value} className={`aiIcon ${value}`} />
               ))}
             </div>
           </div>
