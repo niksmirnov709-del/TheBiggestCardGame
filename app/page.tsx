@@ -6,7 +6,7 @@ type PlayerId = "p1" | "p2";
 type Screen = "menu" | "cover" | "pick" | "build" | "battle" | "rules";
 type AttackTier = "normal" | "super" | "hyper";
 type DefenseTier = "normal" | "hyper";
-type AttackBehavior = "rapido" | "pesado" | "doble" | "cargado" | "rompedefensa";
+type AttackBehavior = "rapido" | "pesado" | "doble" | "cargado" | "rompedefensa" | "fragmenta" | "anulador";
 type DefenseBehavior = "bloqueo" | "reflector" | "absorbe";
 type CharacterId = "planner" | "tank" | "shield" | "striker";
 type PaintTool = "pencil" | "eraser" | "fill" | "picker";
@@ -105,12 +105,30 @@ const attackLabels: Record<AttackBehavior, string> = {
   doble: "doble",
   cargado: "cargado",
   rompedefensa: "rompe defensa",
+  fragmenta: "se divide",
+  anulador: "anula ataques",
 };
 
 const defenseLabels: Record<DefenseBehavior, string> = {
   bloqueo: "bloqueo",
   reflector: "reflector",
   absorbe: "absorbe dano",
+};
+
+const attackTips: Record<AttackBehavior, string> = {
+  rapido: "sale veloz y presiona carriles vacios",
+  pesado: "aguanta choques y pega fuerte",
+  doble: "lanza dos copias por el mismo carril",
+  cargado: "espera un momento y golpea mas duro",
+  rompedefensa: "perfora defensas normales e hiper",
+  fragmenta: "abre el ataque hacia carriles vecinos",
+  anulador: "gana fuerza cuando choca con ataques rivales",
+};
+
+const defenseTips: Record<DefenseBehavior, string> = {
+  bloqueo: "mucha vida para parar golpes directos",
+  reflector: "devuelve ataques que no sean hiper",
+  absorbe: "cura un poco la base al recibir dano",
 };
 
 const characters: Record<CharacterId, { name: string; text: string }> = {
@@ -271,13 +289,13 @@ const initialAttacks: Record<PlayerId, AttackCard[]> = {
   p1: [
     { id: "p1-a1", owner: "p1", kind: "attack", tier: "normal", name: "Normal 1", behavior: "rapido", art: [...emptyArt] },
     { id: "p1-a2", owner: "p1", kind: "attack", tier: "normal", name: "Normal 2", behavior: "doble", art: [...emptyArt] },
-    { id: "p1-a3", owner: "p1", kind: "attack", tier: "super", name: "Super", behavior: "pesado", art: [...emptyArt] },
+    { id: "p1-a3", owner: "p1", kind: "attack", tier: "super", name: "Super", behavior: "fragmenta", art: [...emptyArt] },
     { id: "p1-a4", owner: "p1", kind: "attack", tier: "hyper", name: "Hiper", behavior: "rompedefensa", art: [...emptyArt] },
   ],
   p2: [
     { id: "p2-a1", owner: "p2", kind: "attack", tier: "normal", name: "Normal 1", behavior: "rapido", art: [...emptyArt] },
     { id: "p2-a2", owner: "p2", kind: "attack", tier: "normal", name: "Normal 2", behavior: "doble", art: [...emptyArt] },
-    { id: "p2-a3", owner: "p2", kind: "attack", tier: "super", name: "Super", behavior: "pesado", art: [...emptyArt] },
+    { id: "p2-a3", owner: "p2", kind: "attack", tier: "super", name: "Super", behavior: "fragmenta", art: [...emptyArt] },
     { id: "p2-a4", owner: "p2", kind: "attack", tier: "hyper", name: "Hiper", behavior: "rompedefensa", art: [...emptyArt] },
   ],
 };
@@ -322,6 +340,8 @@ function attackStats(card: AttackCard) {
     doble: { damage: -4, hp: -3, speed: 0.4, charge: 0 },
     cargado: { damage: 12, hp: 3, speed: -1, charge: 1.2 },
     rompedefensa: { damage: 4, hp: 8, speed: -1.2, charge: 0.3 },
+    fragmenta: { damage: -5, hp: -4, speed: 0.8, charge: 0 },
+    anulador: { damage: -1, hp: 6, speed: 0.2, charge: 0 },
   }[card.behavior];
 
   return {
@@ -448,6 +468,38 @@ function PixelEditor({
     onChange(next);
   }
 
+  function outline() {
+    const next = [...artPixels];
+    artPixels.forEach((pixel, index) => {
+      if (!pixel) return;
+      const x = index % gridSize;
+      const y = Math.floor(index / gridSize);
+      [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ].forEach(([nx, ny]) => {
+        if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+          const target = ny * gridSize + nx;
+          if (!artPixels[target]) next[target] = color;
+        }
+      });
+    });
+    onChange(next);
+  }
+
+  function frame() {
+    const next = [...artPixels];
+    for (let i = 0; i < gridSize; i += 1) {
+      next[i] = color;
+      next[(gridSize - 1) * gridSize + i] = color;
+      next[i * gridSize] = color;
+      next[i * gridSize + gridSize - 1] = color;
+    }
+    onChange(next);
+  }
+
   return (
     <div className="pixelEditor">
       <div className="toolStrip" aria-label="Herramientas de dibujo">
@@ -501,6 +553,8 @@ function PixelEditor({
           ))}
         </div>
         <button className="toolButton" onClick={() => onChange([...emptyArt])}>limpiar</button>
+        <button className="toolButton" onClick={outline}>contorno</button>
+        <button className="toolButton" onClick={frame}>marco</button>
         <button className="toolButton" onClick={mirror}>espejo</button>
         <button className="toolButton" onClick={rotate}>rotar</button>
       </div>
@@ -528,11 +582,14 @@ function CardView({
   const label = card.kind === "attack" ? card.tier : `${card.tier} defensa`;
   const badge = card.kind === "attack" ? card.tier.slice(0, 1).toUpperCase() : "D";
   const mechanic = card.kind === "attack" ? attackLabels[card.behavior] : defenseLabels[card.behavior];
+  const icon = card.kind === "attack" ? card.behavior : card.behavior;
+  const blank = card.art.every((pixel) => !pixel);
   return (
     <button className={`card ${card.owner} ${card.kind} ${card.kind === "attack" ? card.tier : card.tier} ${active ? "active" : ""} ${spent ? "spent" : ""}`} onClick={onClick}>
       <span className="cardRibbon">{label}</span>
       <span className={spent ? "cardUsed" : "cardCost"}>{spent ? "usada" : badge}</span>
-      <span className="cardArtFrame">
+      <span className={`cardArtFrame ${blank ? "blank" : ""}`}>
+        <span className={`aiIcon ${icon}`} aria-hidden="true" />
         <PixelSprite art={card.art} />
       </span>
       <span className="cardName">{card.name}</span>
@@ -618,6 +675,18 @@ function CardEditor({
             </div>
           </div>
 
+          <div className="aiAssetPanel">
+            <span>iconos ia</span>
+            <div className="aiIconGrid" aria-hidden="true">
+              {(selected.kind === "attack"
+                ? Object.keys(attackLabels)
+                : Object.keys(defenseLabels)
+              ).map((value) => (
+                <i key={value} className={`aiIcon ${value}`} />
+              ))}
+            </div>
+          </div>
+
           {selected.kind === "attack" ? (
             <>
               <label>
@@ -637,7 +706,7 @@ function CardEditor({
                 <strong>{selected.tier.toUpperCase()}</strong>
                 <span>dano {attackStats(selected).damage}</span>
                 <span>velocidad {attackStats(selected).speed.toFixed(1)}</span>
-                <small>{attackLabels[selected.behavior]} anima el dibujo automaticamente por el carril.</small>
+                <small>{attackTips[selected.behavior]}.</small>
               </div>
             </>
           ) : (
@@ -659,7 +728,7 @@ function CardEditor({
                 <strong>{selected.tier.toUpperCase()}</strong>
                 <span>vida {defenseStats(selected).hp}</span>
                 <span>dura {defenseStats(selected).ttl}s</span>
-                <small>{defenseLabels[selected.behavior]} solo sirve en el carril donde la colocas.</small>
+                <small>{defenseTips[selected.behavior]}.</small>
               </div>
             </>
           )}
@@ -831,15 +900,22 @@ export default function Home() {
     if (usedCards[phasePlayer].includes(selectedToPlay.id)) return;
     if (selectedToPlay.kind === "attack") {
       const stats = attackStats(selectedToPlay);
-      const copies = selectedToPlay.behavior === "doble" ? [-2.2, 2.2] : [0];
+      const copies =
+        selectedToPlay.behavior === "doble"
+          ? [{ lane, offset: -2.2, power: 1 }, { lane, offset: 2.2, power: 1 }]
+          : selectedToPlay.behavior === "fragmenta"
+            ? [lane - 1, lane, lane + 1]
+                .filter((targetLane) => targetLane >= 0 && targetLane <= 4)
+                .map((targetLane) => ({ lane: targetLane, offset: 0, power: targetLane === lane ? 1 : 0.74 }))
+            : [{ lane, offset: 0, power: 1 }];
       const speedBoost = players[selectedToPlay.owner].character === "striker" ? 1.16 : 1;
-      const created = copies.map((offset) => ({
-        id: nextId + offset + Math.random(),
+      const created = copies.map((copy) => ({
+        id: nextId + copy.lane + copy.offset + Math.random(),
         owner: selectedToPlay.owner,
-        lane,
-        x: selectedToPlay.owner === "p1" ? 7 + offset : 93 - offset,
-        hp: stats.hp,
-        damage: stats.damage,
+        lane: copy.lane,
+        x: selectedToPlay.owner === "p1" ? 7 + copy.offset : 93 - copy.offset,
+        hp: stats.hp * copy.power,
+        damage: stats.damage * copy.power,
         speed: stats.speed * speedBoost,
         size: stats.size,
         tier: selectedToPlay.tier,
@@ -1038,8 +1114,10 @@ export default function Home() {
             const a = changed[i];
             const b = changed[j];
             if (!a || !b || a.owner === b.owner || a.lane !== b.lane || Math.abs(a.x - b.x) > 5) continue;
-            changed[i] = { ...a, hp: a.hp - b.damage };
-            changed[j] = { ...b, hp: b.hp - a.damage };
+            const aDamage = a.behavior === "anulador" ? a.damage * 1.75 : a.damage;
+            const bDamage = b.behavior === "anulador" ? b.damage * 1.75 : b.damage;
+            changed[i] = { ...a, hp: a.hp - bDamage };
+            changed[j] = { ...b, hp: b.hp - aDamage };
             newBlasts.push({
               id: nextId + 100 + i + j,
               lane: a.lane,
@@ -1226,7 +1304,7 @@ export default function Home() {
                     .map((item) => (
                       <span
                         key={item.id}
-                        className={`shot ${item.owner} ${item.tier} ${item.charge > 0 ? "charging" : ""}`}
+                        className={`shot ${item.owner} ${item.tier} ${item.behavior} ${item.charge > 0 ? "charging" : ""}`}
                         style={{ left: `${item.x}%`, width: item.size, height: item.size }}
                         title={item.name}
                       >

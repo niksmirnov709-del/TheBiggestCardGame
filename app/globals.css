@@ -1497,3 +1497,461 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Visual rebuild: game-first surface, AI assets, stronger cards/editor. */
+.app {
+  background:
+    linear-gradient(180deg, rgba(4, 7, 13, .58), rgba(4, 7, 13, .9)),
+    url('/arena-table-ai.png') center / cover fixed,
+    #090b12;
+}
+
+.battleApp {
+  position: relative;
+  overflow-x: hidden;
+  padding: 0;
+  background:
+    linear-gradient(180deg, rgba(5, 7, 12, .14), rgba(5, 7, 12, .72)),
+    url('/arena-table-ai.png') center / cover fixed,
+    #100609;
+}
+
+.battleApp .hud {
+  position: fixed;
+  z-index: 30;
+  top: 10px;
+  right: 10px;
+  width: auto;
+  margin: 0;
+  padding: 6px;
+  border: 2px solid rgba(255,255,255,.72);
+  border-radius: 8px;
+  background: rgba(9, 12, 18, .76);
+  box-shadow: 0 10px 26px rgba(0,0,0,.38);
+  backdrop-filter: blur(6px);
+}
+
+.battleApp .hud > div {
+  display: none;
+}
+
+.battleApp .tabs {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  gap: 4px;
+}
+
+.battleApp .tabs button {
+  min-height: 32px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 6px;
+  background: rgba(15,23,42,.86);
+  font-size: 10px;
+  padding: 0 8px;
+}
+
+.battleApp .tabs .active,
+.battleApp .tabs button:hover {
+  background: #facc15;
+  color: #111827;
+}
+
+.gameTable {
+  position: relative;
+  min-height: 100vh;
+  max-width: none;
+  padding: 14px clamp(10px, 3vw, 34px) 18px;
+  grid-template-rows: auto minmax(330px, 1fr) auto;
+  gap: clamp(8px, 1.5vh, 16px);
+}
+
+.tableTop {
+  width: min(1080px, calc(100vw - 28px));
+  justify-self: center;
+  grid-template-columns: 210px minmax(240px, 1fr) 210px;
+  padding-top: 8px;
+}
+
+.opponentSeat {
+  min-width: 280px;
+  transform: perspective(760px) rotateX(11deg) translateY(2px);
+}
+
+.hiddenHand i {
+  border-color: #f8fafc;
+  border-radius: 7px;
+  background:
+    linear-gradient(135deg, #061826 0 44%, #d69f2a 44% 56%, #061826 56%),
+    linear-gradient(180deg, rgba(20,184,166,.42), transparent),
+    #0d2232;
+}
+
+.tableArena {
+  width: min(1080px, calc(100vw - 28px));
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.roundBar {
+  width: min(620px, 100%);
+  margin: 0 auto 8px;
+  border: 2px solid rgba(250,204,21,.72);
+  border-radius: 8px;
+  background: rgba(8, 11, 18, .82);
+  box-shadow: 0 10px 24px rgba(0,0,0,.28);
+  padding: 6px;
+}
+
+.roundBar button,
+.resetButton,
+.menuActions button,
+.coverScreen button {
+  border-radius: 7px;
+}
+
+.tableArena .arenaBoard,
+.arenaBoard {
+  min-height: clamp(330px, 42vh, 510px);
+  padding: clamp(38px, 5vw, 66px) clamp(46px, 7vw, 80px);
+  gap: 7px;
+  border: 3px solid rgba(247, 214, 120, .86);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(14,165,233,.34) 0 7%, transparent 7% 93%, rgba(244,63,94,.34) 93%),
+    linear-gradient(180deg, rgba(255,244,189,.12), transparent 45%),
+    rgba(72, 8, 13, .56);
+  box-shadow:
+    inset 0 0 0 3px rgba(10,12,18,.62),
+    inset 0 0 48px rgba(250,204,21,.13),
+    0 22px 58px rgba(0,0,0,.42);
+  backdrop-filter: blur(2px);
+}
+
+.lane {
+  min-height: clamp(48px, 7.5vh, 76px);
+  border: 2px solid rgba(250,204,21,.42);
+  border-radius: 7px;
+  background:
+    linear-gradient(90deg, rgba(8,145,178,.18), transparent 25%, transparent 75%, rgba(225,29,72,.18)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.055) 0 13px, transparent 13px 26px),
+    rgba(54, 9, 16, .72);
+}
+
+.lane:hover {
+  border-color: #f8fafc;
+  box-shadow: inset 0 0 22px rgba(250,204,21,.18);
+}
+
+.laneNumber {
+  color: rgba(255,255,255,.14);
+  font-size: clamp(22px, 4vw, 42px);
+}
+
+.base {
+  border-radius: 7px;
+  border-color: rgba(255,255,255,.85);
+  box-shadow: inset 0 0 0 4px rgba(0,0,0,.45), 0 0 22px rgba(0,0,0,.4);
+}
+
+.base.p1 {
+  background: linear-gradient(180deg, #0e7490, #083344);
+}
+
+.base.p2 {
+  background: linear-gradient(180deg, #be123c, #4c0519);
+}
+
+.playerHand {
+  width: min(1120px, calc(100vw - 28px));
+  justify-self: center;
+  border: 2px solid rgba(255,255,255,.72);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.16), transparent 34%),
+    rgba(7, 10, 18, .88);
+  box-shadow: 0 -18px 42px rgba(0,0,0,.52);
+  backdrop-filter: blur(8px);
+}
+
+.handHeader {
+  grid-template-columns: minmax(132px, 190px) minmax(220px, 1fr) auto;
+}
+
+.turnBanner,
+.selectedPlay,
+.battleLog,
+.playerStatus {
+  border-radius: 7px;
+  border-color: rgba(255,255,255,.16);
+  background: rgba(8, 13, 24, .78);
+}
+
+.playerStatus {
+  box-shadow: 0 10px 22px rgba(0,0,0,.3);
+}
+
+.card {
+  overflow: hidden;
+  min-height: 178px;
+  border: 2px solid var(--rarity);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.14), transparent 24%),
+    linear-gradient(145deg, rgba(250,204,21,.2), transparent 34%),
+    #121826;
+  box-shadow:
+    inset 0 0 0 3px rgba(0,0,0,.42),
+    0 8px 0 rgba(0,0,0,.45),
+    0 12px 24px rgba(0,0,0,.24);
+}
+
+.card.attack {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.14), transparent 22%),
+    linear-gradient(145deg, rgba(239,68,68,.32), transparent 44%),
+    #170b12;
+}
+
+.card.defense {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.14), transparent 22%),
+    linear-gradient(145deg, rgba(14,165,233,.34), transparent 44%),
+    #061827;
+}
+
+.card.active {
+  filter: saturate(1.15);
+}
+
+.cardRibbon,
+.cardCost,
+.cardUsed {
+  border-radius: 5px;
+}
+
+.cardRibbon {
+  border-color: rgba(0,0,0,.55);
+  box-shadow: 0 2px 0 rgba(0,0,0,.35);
+}
+
+.cardArtFrame {
+  position: relative;
+  overflow: hidden;
+  min-height: 86px;
+  border-radius: 7px;
+  border-color: rgba(255,255,255,.22);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.08), transparent),
+    #090d16;
+}
+
+.cardArtFrame .pixelSprite {
+  position: relative;
+  z-index: 2;
+}
+
+.cardArtFrame .aiIcon {
+  position: absolute;
+  inset: 7px;
+  width: auto;
+  height: auto;
+  opacity: .32;
+  filter: saturate(1.18);
+}
+
+.cardArtFrame.blank .aiIcon {
+  position: relative;
+  inset: auto;
+  width: 72px;
+  height: 72px;
+  opacity: 1;
+}
+
+.cardArtFrame.blank .pixelSprite {
+  display: none;
+}
+
+.aiIcon {
+  display: block;
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+  background-image: url('/card-icons-ai.png');
+  background-repeat: no-repeat;
+  background-size: 400% 260%;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.22);
+}
+
+.aiIcon.rapido { background-position: 0% 0%; }
+.aiIcon.comet { background-position: 33.333% 0%; }
+.aiIcon.pesado { background-position: 66.666% 0%; }
+.aiIcon.cargado { background-position: 100% 0%; }
+.aiIcon.rompedefensa { background-position: 0% 38%; }
+.aiIcon.fragmenta,
+.aiIcon.doble { background-position: 33.333% 38%; }
+.aiIcon.anulador,
+.aiIcon.reflector { background-position: 66.666% 38%; }
+.aiIcon.bloqueo,
+.aiIcon.absorbe { background-position: 100% 38%; }
+
+.shot.fragmenta::after,
+.shot.anulador::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  opacity: .45;
+  animation: castPulse 620ms steps(3) infinite;
+}
+
+.shot.anulador {
+  color: #22d3ee;
+}
+
+.shot.fragmenta {
+  color: #f59e0b;
+}
+
+.buildScreen {
+  max-width: 1320px;
+}
+
+.buildGrid {
+  grid-template-columns: minmax(250px, 300px) minmax(520px, 1fr) minmax(230px, 280px);
+}
+
+.editorPanel,
+.cardsColumn,
+.secretPanel,
+.buildIntro,
+.menuHero,
+.coverScreen,
+.pickScreen,
+.ruleCard {
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.09), transparent 26%),
+    rgba(9, 13, 24, .92);
+  backdrop-filter: blur(8px);
+}
+
+.editorGrid {
+  grid-template-columns: minmax(320px, 470px) minmax(250px, 1fr);
+}
+
+.pixelBoard {
+  border-color: rgba(250,204,21,.86);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.055) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255,255,255,.055) 1px, transparent 1px),
+    #080d16;
+  background-size: 6.25% 6.25%;
+  box-shadow: inset 0 0 0 3px rgba(0,0,0,.58), 0 14px 28px rgba(0,0,0,.28);
+}
+
+.paintTools {
+  grid-template-columns: 1fr repeat(5, auto);
+  align-items: start;
+}
+
+.toolStrip button,
+.nudgeTools button,
+.templateBox button,
+.toolButton,
+.editMini {
+  border-radius: 6px;
+}
+
+.aiAssetPanel {
+  display: grid;
+  gap: 8px;
+  border: 2px solid rgba(250,204,21,.45);
+  border-radius: 7px;
+  background: rgba(8, 13, 24, .84);
+  padding: 10px;
+}
+
+.aiAssetPanel > span {
+  color: #facc15;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.aiIconGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: 8px;
+}
+
+.aiIconGrid .aiIcon {
+  width: 100%;
+  min-height: 48px;
+}
+
+.editorPreview {
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.14), transparent 30%),
+    rgba(7, 11, 20, .9);
+}
+
+.menuScreen {
+  max-width: 1240px;
+}
+
+.menuHero {
+  min-height: 520px;
+  display: grid;
+  align-content: end;
+  background:
+    linear-gradient(180deg, rgba(9,12,18,.08), rgba(9,12,18,.84) 58%),
+    url('/arena-table-ai.png') center / cover;
+}
+
+.menuPreview {
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(8,13,24,.06), rgba(8,13,24,.76)),
+    url('/arena-table-ai.png') center / cover;
+}
+
+@media (max-width: 960px) {
+  .battleApp .hud {
+    position: static;
+    margin: 8px;
+  }
+
+  .gameTable {
+    min-height: calc(100vh - 72px);
+    padding-top: 0;
+  }
+
+  .tableTop,
+  .handHeader,
+  .buildGrid,
+  .editorGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .tableTop {
+    width: 100%;
+  }
+
+  .opponentSeat {
+    min-width: 0;
+  }
+
+  .playerHand .deck {
+    grid-template-columns: 1fr;
+  }
+
+  .paintTools {
+    grid-template-columns: 1fr 1fr;
+  }
+}
