@@ -1115,7 +1115,7 @@ export default function Home() {
   }, [running, winner, placedDefenses, nextId, screen]);
 
   return (
-    <main className="app">
+    <main className={`app ${screen === "battle" ? "battleApp" : ""}`}>
       <header className="hud">
         <div>
           <span className="eyebrow">Beta local 1 vs 1</span>
@@ -1183,30 +1183,18 @@ export default function Home() {
       )}
 
       {screen === "battle" && (
-        <section className="battleLayout">
-          <aside className={`sidePanel ${phasePlayer === "p1" ? "left" : "right"}`}>
-            <div className="turnBanner">
-              <span>turno actual</span>
-              <strong>{playerName(phasePlayer)}</strong>
-            </div>
-            <PlayerStatus player={phasePlayer} state={players[phasePlayer]} />
-            <Deck
-              attacks={attacks[phasePlayer]}
-              defenses={defenses[phasePlayer]}
-              selected={selectedToPlay}
-              usedIds={usedCards[phasePlayer]}
-              allowEdit={false}
-              onSelect={(card) => setSelectedToPlay(card)}
-              onEdit={() => undefined}
-            />
-            <button className="resetButton" onClick={changeTurn}>cambiar turno</button>
-          </aside>
+        <section className="gameTable">
+          <div className="tableTop">
+            <PlayerStatus player="p1" state={players.p1} />
+            <OpponentSeat player={otherPlayer(phasePlayer)} used={usedCards[otherPlayer(phasePlayer)].length} />
+            <PlayerStatus player="p2" state={players.p2} />
+          </div>
 
-          <section className="arenaPanel">
+          <section className="arenaPanel tableArena">
             <div className="roundBar">
               <button onClick={() => setRunning((value) => !value)}>{running ? "pausar" : "seguir"}</button>
               <strong>Ronda {round}</strong>
-              <span>nueva ronda automatica</span>
+              <span>pista central</span>
             </div>
 
             <div className="arenaBoard">
@@ -1260,28 +1248,41 @@ export default function Home() {
               ))}
               {winner && <div className="winner">{winner} gana</div>}
             </div>
-
-            <div className="selectedPlay">
-              <PixelSprite art={selectedToPlay.art} small />
-              <span>
-                seleccionada: <strong>{selectedToPlay.name}</strong>
-              </span>
-              <small>
-                {selectedToPlay.kind === "attack"
-                  ? `${selectedToPlay.tier} / ${attackLabels[selectedToPlay.behavior]}`
-                  : `${selectedToPlay.tier} / ${defenseLabels[selectedToPlay.behavior]}`}
-              </small>
-            </div>
           </section>
 
-          <aside className="sidePanel lockedPanel">
-            <PlayerStatus player="p1" state={players.p1} />
-            <PlayerStatus player="p2" state={players.p2} />
-            <div className="battleLog">
-              <span className="deckLabel">bitacora</span>
-              {log.map((entry) => <p key={entry}>{entry}</p>)}
+          <section className="playerHand">
+            <div className="handHeader">
+              <div className="turnBanner">
+                <span>mano actual</span>
+                <strong>{playerName(phasePlayer)}</strong>
+              </div>
+              <div className="selectedPlay">
+                <PixelSprite art={selectedToPlay.art} small />
+                <span>
+                  seleccionada: <strong>{selectedToPlay.name}</strong>
+                </span>
+                <small>
+                  {selectedToPlay.kind === "attack"
+                    ? `${selectedToPlay.tier} / ${attackLabels[selectedToPlay.behavior]}`
+                    : `${selectedToPlay.tier} / ${defenseLabels[selectedToPlay.behavior]}`}
+                </small>
+              </div>
+              <button className="resetButton" onClick={changeTurn}>cambiar turno</button>
             </div>
-          </aside>
+            <Deck
+              attacks={attacks[phasePlayer]}
+              defenses={defenses[phasePlayer]}
+              selected={selectedToPlay}
+              usedIds={usedCards[phasePlayer]}
+              allowEdit={false}
+              onSelect={(card) => setSelectedToPlay(card)}
+              onEdit={() => undefined}
+            />
+            <div className="battleLog tableLog">
+              <span className="deckLabel">bitacora</span>
+              {log.slice(0, 3).map((entry) => <p key={entry}>{entry}</p>)}
+            </div>
+          </section>
         </section>
       )}
 
@@ -1379,6 +1380,21 @@ function PickScreen({
       <CharacterPick player={player} state={state} onPick={onPick} />
       <button className="resetButton" onClick={onDone}>confirmar personaje</button>
     </section>
+  );
+}
+
+function OpponentSeat({ player, used }: { player: PlayerId; used: number }) {
+  const remaining = Math.max(0, 6 - used);
+  return (
+    <div className={`opponentSeat ${player}`}>
+      <span>{playerName(player)}</span>
+      <strong>{remaining} cartas</strong>
+      <div className="hiddenHand" aria-hidden="true">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <i key={index} className={index >= remaining ? "gone" : ""} />
+        ))}
+      </div>
+    </div>
   );
 }
 

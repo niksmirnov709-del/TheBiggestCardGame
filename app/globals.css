@@ -51,6 +51,13 @@ button {
   padding: 18px;
 }
 
+.battleApp {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 220, 120, .2), transparent 18%),
+    radial-gradient(circle at 50% 55%, rgba(255, 255, 255, .08), transparent 36%),
+    linear-gradient(180deg, #970909, #4b0308 72%, #230104);
+}
+
 .hud {
   max-width: 1440px;
   margin: 0 auto 14px;
@@ -123,6 +130,180 @@ h1 {
   grid-template-columns: 286px minmax(620px, 1fr) 260px;
   gap: 14px;
   align-items: start;
+}
+
+.gameTable {
+  min-height: calc(100vh - 116px);
+  max-width: 1440px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-rows: auto minmax(410px, 1fr) auto;
+  gap: 14px;
+}
+
+.tableTop {
+  display: grid;
+  grid-template-columns: 220px minmax(260px, 1fr) 220px;
+  gap: 16px;
+  align-items: start;
+}
+
+.opponentSeat {
+  justify-self: center;
+  min-width: 320px;
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  transform: perspective(700px) rotateX(12deg);
+}
+
+.opponentSeat > span {
+  border: 2px solid #ffffff;
+  background: #0ea5e9;
+  color: #ffffff;
+  box-shadow: 3px 3px 0 rgba(0,0,0,.45);
+  font-size: 12px;
+  font-weight: 950;
+  padding: 3px 8px;
+  text-transform: uppercase;
+}
+
+.opponentSeat > strong {
+  color: #ffffff;
+  font-size: 13px;
+  text-shadow: 2px 2px 0 #000000;
+  text-transform: uppercase;
+}
+
+.hiddenHand {
+  position: relative;
+  width: 290px;
+  height: 92px;
+}
+
+.hiddenHand i {
+  position: absolute;
+  left: calc(50% - 34px);
+  bottom: 0;
+  width: 58px;
+  height: 82px;
+  border: 4px solid #ffffff;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, #111827 0 46%, #facc15 46% 54%, #111827 54%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,.18) 0 4px, transparent 4px 8px);
+  box-shadow: 6px 8px 0 rgba(0,0,0,.28);
+  transform-origin: 50% 95%;
+}
+
+.hiddenHand i:nth-child(1) { transform: rotate(-20deg) translateX(-88px); }
+.hiddenHand i:nth-child(2) { transform: rotate(-13deg) translateX(-54px); }
+.hiddenHand i:nth-child(3) { transform: rotate(-6deg) translateX(-20px); }
+.hiddenHand i:nth-child(4) { transform: rotate(4deg) translateX(16px); }
+.hiddenHand i:nth-child(5) { transform: rotate(12deg) translateX(52px); }
+.hiddenHand i:nth-child(6) { transform: rotate(20deg) translateX(88px); }
+
+.hiddenHand .gone {
+  opacity: .18;
+  filter: grayscale(1);
+}
+
+.tableArena {
+  align-self: center;
+  width: min(980px, 100%);
+  justify-self: center;
+  border-color: rgba(255,255,255,.86);
+  background: rgba(20, 6, 12, .58);
+  box-shadow: 0 24px 60px rgba(0,0,0,.38), inset 0 0 0 3px rgba(255,255,255,.08);
+}
+
+.tableArena .arenaBoard {
+  min-height: 430px;
+  padding: 50px 70px;
+  border-color: rgba(255,255,255,.9);
+  background:
+    linear-gradient(90deg, rgba(56,189,248,.32) 0 9%, transparent 9% 91%, rgba(251,113,133,.32) 91%),
+    radial-gradient(circle at 50% 50%, rgba(250,204,21,.22), transparent 18%),
+    repeating-linear-gradient(0deg, #2b374d 0 22px, #1f2a3d 22px 44px);
+}
+
+.tableArena .lane {
+  min-height: 60px;
+}
+
+.tableArena .base {
+  top: 48px;
+  bottom: 48px;
+}
+
+.playerHand {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  border: 4px solid rgba(255,255,255,.9);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.14), transparent 38%),
+    rgba(15, 23, 42, .88);
+  box-shadow: 0 -10px 44px rgba(0,0,0,.42), 6px 6px 0 rgba(0,0,0,.45);
+  padding: 12px;
+}
+
+.handHeader {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) minmax(240px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.playerHand .deck {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.playerHand .deckGroup {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 6px 3px 10px;
+}
+
+.playerHand .deckLabel {
+  align-self: center;
+  flex: 0 0 auto;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.playerHand .cardWrap {
+  flex: 0 0 124px;
+  display: block;
+}
+
+.playerHand .card {
+  min-height: 176px;
+  transform-origin: 50% 100%;
+}
+
+.playerHand .cardWrap:nth-child(2n) .card {
+  transform: rotate(-3deg);
+}
+
+.playerHand .cardWrap:nth-child(3n) .card {
+  transform: rotate(3deg);
+}
+
+.playerHand .card.active {
+  transform: translateY(-18px) scale(1.04);
+  z-index: 4;
+}
+
+.tableLog {
+  grid-template-columns: auto 1fr 1fr 1fr;
+  align-items: center;
 }
 
 .menuScreen,
