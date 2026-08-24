@@ -1405,14 +1405,6 @@ function MenuScreen({ onStart, onRules }: { onStart: () => void; onRules: () => 
           <button onClick={onRules}>ver reglas</button>
         </div>
       </div>
-      <div className="menuPreview">
-        {lanes.map((lane) => (
-          <span key={lane}>
-            <i />
-            <b />
-          </span>
-        ))}
-      </div>
     </section>
   );
 }
