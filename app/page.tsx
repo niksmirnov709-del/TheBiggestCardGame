@@ -21,6 +21,8 @@ type Screen = "menu" | "cover" | "pick" | "build" | "battle" | "rules";
 type AttackTier = "normal" | "super" | "hyper";
 type DefenseTier = "normal" | "hyper";
 type AttackBehavior = "rapido" | "pesado" | "doble" | "cargado" | "rompedefensa" | "fragmenta" | "anulador";
+type AttackSpeed = "rapida" | "media" | "lenta";
+type AttackWeight = "ligera" | "normal" | "pesada";
 type DefenseBehavior = "bloqueo" | "reflector" | "absorbe";
 type CharacterId = "planner" | "tank" | "shield" | "striker";
 type PaintTool = "pencil" | "eraser" | "fill" | "picker";
@@ -35,6 +37,8 @@ type AttackCard = {
   tier: AttackTier;
   name: string;
   behavior: AttackBehavior;
+  speedMode: AttackSpeed;
+  weightMode: AttackWeight;
   art: PixelArt;
 };
 
@@ -114,13 +118,25 @@ const colors = [
 ];
 
 const attackLabels: Record<AttackBehavior, string> = {
-  rapido: "rapido",
-  pesado: "pesado",
+  rapido: "recto",
+  pesado: "impacto",
   doble: "doble",
   cargado: "cargado",
   rompedefensa: "rompe defensa",
   fragmenta: "se divide",
   anulador: "anula ataques",
+};
+
+const speedLabels: Record<AttackSpeed, string> = {
+  rapida: "rapido",
+  media: "normal",
+  lenta: "lento",
+};
+
+const weightLabels: Record<AttackWeight, string> = {
+  ligera: "ligero",
+  normal: "equilibrado",
+  pesada: "pesado",
 };
 
 const defenseLabels: Record<DefenseBehavior, string> = {
@@ -130,8 +146,8 @@ const defenseLabels: Record<DefenseBehavior, string> = {
 };
 
 const attackTips: Record<AttackBehavior, string> = {
-  rapido: "sale veloz y presiona carriles vacios",
-  pesado: "aguanta choques y pega fuerte",
+  rapido: "viaja en linea simple y es facil de leer",
+  pesado: "empuja fuerte si consigue conectar",
   doble: "lanza dos copias por el mismo carril",
   cargado: "espera un momento y golpea mas duro",
   rompedefensa: "perfora defensas normales e hiper",
@@ -301,16 +317,16 @@ const art = {
 
 const initialAttacks: Record<PlayerId, AttackCard[]> = {
   p1: [
-    { id: "p1-a1", owner: "p1", kind: "attack", tier: "normal", name: "Normal 1", behavior: "rapido", art: [...emptyArt] },
-    { id: "p1-a2", owner: "p1", kind: "attack", tier: "normal", name: "Normal 2", behavior: "doble", art: [...emptyArt] },
-    { id: "p1-a3", owner: "p1", kind: "attack", tier: "super", name: "Super", behavior: "fragmenta", art: [...emptyArt] },
-    { id: "p1-a4", owner: "p1", kind: "attack", tier: "hyper", name: "Hiper", behavior: "rompedefensa", art: [...emptyArt] },
+    { id: "p1-a1", owner: "p1", kind: "attack", tier: "normal", name: "Normal 1", behavior: "rapido", speedMode: "rapida", weightMode: "ligera", art: [...emptyArt] },
+    { id: "p1-a2", owner: "p1", kind: "attack", tier: "normal", name: "Normal 2", behavior: "doble", speedMode: "media", weightMode: "normal", art: [...emptyArt] },
+    { id: "p1-a3", owner: "p1", kind: "attack", tier: "super", name: "Super", behavior: "fragmenta", speedMode: "media", weightMode: "normal", art: [...emptyArt] },
+    { id: "p1-a4", owner: "p1", kind: "attack", tier: "hyper", name: "Hiper", behavior: "rompedefensa", speedMode: "lenta", weightMode: "pesada", art: [...emptyArt] },
   ],
   p2: [
-    { id: "p2-a1", owner: "p2", kind: "attack", tier: "normal", name: "Normal 1", behavior: "rapido", art: [...emptyArt] },
-    { id: "p2-a2", owner: "p2", kind: "attack", tier: "normal", name: "Normal 2", behavior: "doble", art: [...emptyArt] },
-    { id: "p2-a3", owner: "p2", kind: "attack", tier: "super", name: "Super", behavior: "fragmenta", art: [...emptyArt] },
-    { id: "p2-a4", owner: "p2", kind: "attack", tier: "hyper", name: "Hiper", behavior: "rompedefensa", art: [...emptyArt] },
+    { id: "p2-a1", owner: "p2", kind: "attack", tier: "normal", name: "Normal 1", behavior: "rapido", speedMode: "rapida", weightMode: "ligera", art: [...emptyArt] },
+    { id: "p2-a2", owner: "p2", kind: "attack", tier: "normal", name: "Normal 2", behavior: "doble", speedMode: "media", weightMode: "normal", art: [...emptyArt] },
+    { id: "p2-a3", owner: "p2", kind: "attack", tier: "super", name: "Super", behavior: "fragmenta", speedMode: "media", weightMode: "normal", art: [...emptyArt] },
+    { id: "p2-a4", owner: "p2", kind: "attack", tier: "hyper", name: "Hiper", behavior: "rompedefensa", speedMode: "lenta", weightMode: "pesada", art: [...emptyArt] },
   ],
 };
 
@@ -349,7 +365,7 @@ function attackStats(card: AttackCard) {
   }[card.tier];
 
   const behavior = {
-    rapido: { damage: -2, hp: -2, speed: 2.7, charge: 0 },
+    rapido: { damage: 0, hp: 0, speed: 0, charge: 0 },
     pesado: { damage: 9, hp: 10, speed: -2, charge: 0 },
     doble: { damage: -4, hp: -3, speed: 0.4, charge: 0 },
     cargado: { damage: 12, hp: 3, speed: -1, charge: 1.2 },
@@ -358,12 +374,24 @@ function attackStats(card: AttackCard) {
     anulador: { damage: -1, hp: 6, speed: 0.2, charge: 0 },
   }[card.behavior];
 
+  const speedMode = {
+    rapida: { damage: -6, hp: -4, speed: 3.2, size: -2, charge: 0 },
+    media: { damage: 0, hp: 0, speed: 0, size: 0, charge: 0 },
+    lenta: { damage: 8, hp: 7, speed: -2.1, size: 3, charge: 0.2 },
+  }[card.speedMode];
+
+  const weightMode = {
+    ligera: { damage: -3, hp: -4, speed: 1.1, size: -3 },
+    normal: { damage: 0, hp: 0, speed: 0, size: 0 },
+    pesada: { damage: 7, hp: 9, speed: -1.4, size: 4 },
+  }[card.weightMode];
+
   return {
-    damage: Math.max(4, tier.damage + behavior.damage),
-    hp: Math.max(3, tier.hp + behavior.hp),
-    speed: Math.max(1.8, tier.speed + behavior.speed),
-    size: tier.size,
-    charge: tier.charge + behavior.charge,
+    damage: Math.max(4, Math.round(tier.damage + behavior.damage + speedMode.damage + weightMode.damage)),
+    hp: Math.max(3, Math.round(tier.hp + behavior.hp + speedMode.hp + weightMode.hp)),
+    speed: Math.max(1.8, tier.speed + behavior.speed + speedMode.speed + weightMode.speed),
+    size: clamp(tier.size + speedMode.size + weightMode.size, 18, 40),
+    charge: tier.charge + behavior.charge + speedMode.charge,
   };
 }
 
@@ -613,7 +641,10 @@ function CardView({
 }) {
   const label = card.kind === "attack" ? card.tier : `${card.tier} defensa`;
   const badge = card.kind === "attack" ? card.tier.slice(0, 1).toUpperCase() : "D";
-  const mechanic = card.kind === "attack" ? attackLabels[card.behavior] : defenseLabels[card.behavior];
+  const mechanic =
+    card.kind === "attack"
+      ? `${speedLabels[card.speedMode]} / ${attackLabels[card.behavior]}`
+      : defenseLabels[card.behavior];
   return (
     <button className={`card ${card.owner} ${card.kind} ${card.kind === "attack" ? card.tier : card.tier} ${active ? "active" : ""} ${spent ? "spent" : ""}`} onClick={onClick}>
       <span className="cardRibbon">{label}</span>
@@ -676,7 +707,7 @@ function CardEditor({
             <strong>{selected.name}</strong>
             <small>
               {selected.kind === "attack"
-                ? `${selected.tier} / ${attackLabels[selected.behavior]}`
+                ? `${selected.tier} / ${speedLabels[selected.speedMode]} / ${weightLabels[selected.weightMode]}`
                 : `${selected.tier} / ${defenseLabels[selected.behavior]}`}
             </small>
           </div>
@@ -706,8 +737,36 @@ function CardEditor({
 
           {selected.kind === "attack" ? (
             <>
+              <div className="createMatrix">
+                <label>
+                  velocidad
+                  <select
+                    value={selected.speedMode}
+                    onChange={(event) =>
+                      onAttackChange({ ...selected, speedMode: event.target.value as AttackSpeed })
+                    }
+                  >
+                    {Object.entries(speedLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  peso
+                  <select
+                    value={selected.weightMode}
+                    onChange={(event) =>
+                      onAttackChange({ ...selected, weightMode: event.target.value as AttackWeight })
+                    }
+                  >
+                    {Object.entries(weightLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <label>
-                mecanica
+                forma
                 <select
                   value={selected.behavior}
                   onChange={(event) =>
@@ -722,7 +781,10 @@ function CardEditor({
               <div className="statBox">
                 <strong>{selected.tier.toUpperCase()}</strong>
                 <span>dano {attackStats(selected).damage}</span>
+                <span>vida {attackStats(selected).hp}</span>
                 <span>velocidad {attackStats(selected).speed.toFixed(1)}</span>
+                <span>tamano {attackStats(selected).size}</span>
+                <small>balance automatico: {speedLabels[selected.speedMode]} + {weightLabels[selected.weightMode]} + {attackLabels[selected.behavior]}.</small>
                 <small>{attackTips[selected.behavior]}.</small>
               </div>
             </>

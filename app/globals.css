@@ -1206,6 +1206,12 @@ h1 {
   gap: 12px;
 }
 
+.createMatrix {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 .editorControls label {
   display: grid;
   gap: 5px;
@@ -1225,6 +1231,10 @@ h1 {
   color: #f8fafc;
   padding: 0 10px;
   font-weight: 800;
+}
+
+.createMatrix select {
+  border-color: rgba(250,204,21,.6);
 }
 
 .editorPreview {
@@ -1302,6 +1312,15 @@ h1 {
   color: #cbd5e1;
   font-size: 13px;
   font-weight: 800;
+}
+
+.statBox {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.statBox strong,
+.statBox small {
+  grid-column: 1 / -1;
 }
 
 .statBox small {
