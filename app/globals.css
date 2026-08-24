@@ -1108,6 +1108,56 @@ h1 {
   box-shadow: 2px 2px 0 rgba(0,0,0,.45);
 }
 
+.aimGhost {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 50%;
+  width: 66px;
+  height: 66px;
+  border: 3px solid #facc15;
+  border-radius: 50%;
+  opacity: .76;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: aimPulse 520ms steps(3) infinite;
+}
+
+.aimGhost::before,
+.aimGhost::after {
+  content: "";
+  position: absolute;
+  background: #facc15;
+}
+
+.aimGhost::before {
+  left: 50%;
+  top: -12px;
+  width: 3px;
+  height: 88px;
+  transform: translateX(-50%);
+}
+
+.aimGhost::after {
+  left: -12px;
+  top: 50%;
+  width: 88px;
+  height: 3px;
+  transform: translateY(-50%);
+}
+
+.aimGhost.splash {
+  width: 46px;
+  height: 46px;
+  border-color: #fb923c;
+  opacity: .46;
+}
+
+.aimGhost.splash::before,
+.aimGhost.splash::after {
+  background: #fb923c;
+}
+
 .laneBadge,
 .dangerPip {
   position: absolute;
@@ -1261,6 +1311,41 @@ h1 {
   filter: drop-shadow(0 0 14px rgba(168, 85, 247, .95));
 }
 
+.shot.plan-potencia {
+  animation: heavyShot 520ms steps(2) infinite;
+}
+
+.shot.plan-rapida {
+  animation: fastShot 260ms steps(2) infinite;
+}
+
+.shot.plan-control {
+  color: #22d3ee;
+  filter: drop-shadow(0 0 10px rgba(34, 211, 238, .78));
+  animation: controlShot 620ms steps(3) infinite;
+}
+
+.shot.plan-potencia::after,
+.shot.plan-rapida::after,
+.shot.plan-control::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  opacity: .35;
+}
+
+.shot.plan-rapida::before {
+  width: 92px;
+  height: 9px;
+}
+
+.shot.plan-potencia::before {
+  width: 44px;
+  height: 18px;
+}
+
 .shot.charging {
   opacity: .55;
   animation: charge 250ms steps(2) infinite;
@@ -1305,6 +1390,22 @@ h1 {
   border: 3px solid #ffffff;
   background-color: transparent !important;
   animation: castPulse 620ms steps(4) forwards;
+}
+
+.blast.telegraph {
+  z-index: 4;
+  width: 74%;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,.8);
+  border-radius: 999px;
+  clip-path: none;
+  opacity: .72;
+  transform: translate(-50%, -50%);
+  animation: attackLine 680ms steps(5) forwards;
+}
+
+.blast.telegraph em {
+  top: -24px;
 }
 
 .blast.base {
@@ -1398,6 +1499,46 @@ h1 {
   font-size: 10px;
   font-weight: 950;
   text-transform: uppercase;
+}
+
+.attackPlanBar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  border: 2px solid rgba(255,255,255,.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.08), transparent),
+    rgba(8, 13, 24, .72);
+  padding: 8px;
+}
+
+.attackPlanBar button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 2px solid rgba(255,255,255,.16);
+  border-radius: 7px;
+  background: #111827;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+  box-shadow: 3px 3px 0 rgba(0,0,0,.45);
+}
+
+.attackPlanBar button.active {
+  border-color: #facc15;
+  background:
+    linear-gradient(180deg, #fde047, #f59e0b);
+  color: #111827;
+}
+
+.attackPlanBar button:disabled {
+  opacity: .48;
+  box-shadow: none;
 }
 
 .endTurnButton {
@@ -1738,6 +1879,44 @@ h1 {
   }
 }
 
+@keyframes fastShot {
+  0%, 100% {
+    transform: translate(-50%, -50%) translateX(-4px) scale(.92);
+  }
+  50% {
+    transform: translate(-50%, -50%) translateX(4px) scale(1.08);
+  }
+}
+
+@keyframes heavyShot {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.16) rotate(4deg);
+  }
+}
+
+@keyframes controlShot {
+  0%, 100% {
+    transform: translate(-50%, -50%) rotate(-4deg);
+  }
+  50% {
+    transform: translate(-50%, -50%) rotate(4deg);
+  }
+}
+
+@keyframes aimPulse {
+  0%, 100% {
+    opacity: .42;
+    transform: translate(-50%, -50%) scale(.9);
+  }
+  50% {
+    opacity: .86;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+}
+
 @keyframes charge {
   0%, 100% {
     transform: translate(-50%, -50%) scale(.8);
@@ -1765,6 +1944,21 @@ h1 {
   to {
     transform: translate(-50%, -50%) scale(2.2);
     opacity: 0;
+  }
+}
+
+@keyframes attackLine {
+  0% {
+    opacity: .92;
+    transform: translate(-50%, -50%) scaleX(.08);
+  }
+  60% {
+    opacity: .72;
+    transform: translate(-50%, -50%) scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scaleX(1.08);
   }
 }
 
@@ -1817,6 +2011,7 @@ h1 {
   .editorGrid,
   .rulesScreen,
   .battleModifiers,
+  .attackPlanBar,
   .pickScreen .characterPick {
     grid-template-columns: 1fr;
   }

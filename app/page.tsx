@@ -7,8 +7,10 @@ import {
   ArrowRight,
   ArrowUp,
   BookOpen,
+  Crosshair,
   Eraser,
   FlipHorizontal,
+  Gauge,
   LogOut,
   PaintBucket,
   Pencil,
@@ -18,6 +20,7 @@ import {
   RotateCw,
   Square,
   Trash2,
+  Zap,
 } from "lucide-react";
 
 type PlayerId = "p1" | "p2";
@@ -27,6 +30,7 @@ type DefenseTier = "normal" | "hyper" | "invisible";
 type AttackBehavior = "rapido" | "pesado" | "doble" | "cargado" | "rompedefensa" | "fragmenta" | "anulador";
 type AttackSpeed = "rapida" | "media" | "lenta";
 type AttackWeight = "ligera" | "normal" | "pesada";
+type AttackPlan = "potencia" | "rapida" | "control";
 type DefenseBehavior = "bloqueo" | "reflector" | "absorbe" | "trampa" | "rapida" | "armadura";
 type CharacterId = "planner" | "tank" | "shield" | "striker";
 type PaintTool = "pencil" | "eraser" | "fill" | "picker";
@@ -72,6 +76,7 @@ type Projectile = {
   behavior: AttackBehavior;
   speedMode: AttackSpeed;
   weightMode: AttackWeight;
+  plan: AttackPlan;
   name: string;
   art: PixelArt;
   charge: number;
@@ -97,7 +102,7 @@ type Blast = {
   ttl: number;
   color: string;
   label?: string;
-  kind?: "cast" | "hit" | "base";
+  kind?: "cast" | "hit" | "base" | "telegraph";
 };
 
 type PlayerState = {
@@ -149,6 +154,18 @@ const weightLabels: Record<AttackWeight, string> = {
   ligera: "ligero",
   normal: "equilibrado",
   pesada: "pesado",
+};
+
+const attackPlanLabels: Record<AttackPlan, string> = {
+  potencia: "golpe fuerte",
+  rapida: "salida rapida",
+  control: "control",
+};
+
+const attackPlanTips: Record<AttackPlan, string> = {
+  potencia: "pega mas duro, pero sale con un pequeno aviso",
+  rapida: "sale antes y viaja mas rapido, aunque pega menos",
+  control: "aguanta choques y ayuda a dominar el carril",
 };
 
 const defenseLabels: Record<DefenseBehavior, string> = {
@@ -435,6 +452,24 @@ function defenseStats(card: DefenseCard) {
   };
 }
 
+function attackPlanStats(plan: AttackPlan) {
+  return {
+    potencia: { damage: 1.24, hp: 1, speed: 0.88, size: 4, charge: 0.35, label: "FUERTE" },
+    rapida: { damage: 0.82, hp: 0.86, speed: 1.34, size: -3, charge: -0.45, label: "RAPIDA" },
+    control: { damage: 0.94, hp: 1.28, speed: 0.96, size: 2, charge: 0.05, label: "CTRL" },
+  }[plan];
+}
+
+function attackPreviewLanes(card: GameCard, lane: number) {
+  if (card.kind !== "attack") return [{ lane, main: true }];
+  if (card.behavior === "fragmenta") {
+    return [lane - 1, lane, lane + 1]
+      .filter((targetLane) => targetLane >= 0 && targetLane < lanes.length)
+      .map((targetLane) => ({ lane: targetLane, main: targetLane === lane }));
+  }
+  return [{ lane, main: true }];
+}
+
 function laneMoodForRound(roundNumber: number): LaneMood {
   const hot = (roundNumber * 2 + 1) % lanes.length;
   let shielded = (roundNumber * 3 + 4) % lanes.length;
@@ -442,14 +477,15 @@ function laneMoodForRound(roundNumber: number): LaneMood {
   return { hot, shielded };
 }
 
-function selectedCardStats(card: GameCard) {
+function selectedCardStats(card: GameCard, plan: AttackPlan) {
   if (card.kind === "attack") {
     const stats = attackStats(card);
+    const planStats = attackPlanStats(plan);
     return [
-      `dano ${stats.damage}`,
-      `vida ${stats.hp}`,
-      `vel ${stats.speed.toFixed(1)}`,
-      `tam ${stats.size}`,
+      `dano ${Math.round(stats.damage * planStats.damage)}`,
+      `vida ${Math.round(stats.hp * planStats.hp)}`,
+      `vel ${(stats.speed * planStats.speed).toFixed(1)}`,
+      `modo ${attackPlanLabels[plan].split(" ")[0]}`,
     ];
   }
   const stats = defenseStats(card);
@@ -930,6 +966,8 @@ export default function Home() {
   const [round, setRound] = useState(1);
   const [laneMood, setLaneMood] = useState<LaneMood>(() => laneMoodForRound(1));
   const [tension, setTension] = useState(0);
+  const [attackPlans, setAttackPlans] = useState<Record<PlayerId, AttackPlan>>({ p1: "potencia", p2: "potencia" });
+  const [aimLane, setAimLane] = useState<number | null>(null);
   const [running, setRunning] = useState(true);
   const [nextId, setNextId] = useState(1);
   const [log, setLog] = useState<string[]>(["Beta lista: empieza una partida nueva."]);
@@ -940,7 +978,10 @@ export default function Home() {
   );
   const selectedForEdit = allCards.find((card) => card.id === selectedId) ?? attacks.p1[0];
   const winner = players.p1.baseHp <= 0 ? "Jugador 2" : players.p2.baseHp <= 0 ? "Jugador 1" : "";
-  const selectedStats = selectedCardStats(selectedToPlay);
+  const currentAttackPlan = attackPlans[phasePlayer];
+  const selectedStats = selectedCardStats(selectedToPlay, currentAttackPlan);
+  const previewTargets =
+    aimLane === null || selectedToPlay.kind !== "attack" ? [] : attackPreviewLanes(selectedToPlay, aimLane);
   const selectedIsUsed = usedCards[phasePlayer].includes(selectedToPlay.id);
   const canPlayThisTurn =
     screen === "battle" &&
@@ -965,6 +1006,7 @@ export default function Home() {
       const firstCard = selectFirstReady(phasePlayer);
       if (firstCard) setSelectedToPlay(firstCard);
       setTurnPlayed(false);
+      setAimLane(null);
       addLog(`${playerName(phasePlayer)} tiene el turno.`);
     }
     if (coverNext === "build") {
@@ -987,6 +1029,8 @@ export default function Home() {
     setRound(1);
     setLaneMood(laneMoodForRound(1));
     setTension(0);
+    setAttackPlans({ p1: "potencia", p2: "potencia" });
+    setAimLane(null);
     setRunning(false);
     setNextId(1);
     setPhasePlayer("p1");
@@ -1054,6 +1098,7 @@ export default function Home() {
     if (usedCards[phasePlayer].includes(selectedToPlay.id)) return;
     if (selectedToPlay.kind === "attack") {
       const stats = attackStats(selectedToPlay);
+      const planStats = attackPlanStats(currentAttackPlan);
       const laneBonus = lane === laneMood.hot ? 1.18 : 1;
       const pressureBonus = tension >= 70 ? 1.08 : 1;
       const copies =
@@ -1070,21 +1115,31 @@ export default function Home() {
         owner: selectedToPlay.owner,
         lane: copy.lane,
         x: selectedToPlay.owner === "p1" ? 7 + copy.offset : 93 - copy.offset,
-        hp: stats.hp * copy.power,
-        damage: stats.damage * copy.power * laneBonus * pressureBonus,
-        speed: stats.speed * speedBoost,
-        size: stats.size,
+        hp: stats.hp * copy.power * planStats.hp,
+        damage: stats.damage * copy.power * planStats.damage * laneBonus * pressureBonus,
+        speed: stats.speed * planStats.speed * speedBoost,
+        size: clamp(stats.size + planStats.size, 16, 44),
         tier: selectedToPlay.tier,
         behavior: selectedToPlay.behavior,
         speedMode: selectedToPlay.speedMode,
         weightMode: selectedToPlay.weightMode,
+        plan: currentAttackPlan,
         name: selectedToPlay.name,
         art: selectedToPlay.art,
-        charge: stats.charge,
+        charge: Math.max(0, stats.charge + planStats.charge),
       }));
       setProjectiles((current) => [...current, ...created]);
       setBlasts((current) => [
         ...current,
+        {
+          id: nextId + 350,
+          lane,
+          x: 50,
+          ttl: 7,
+          color: primaryColor(selectedToPlay.art, "#facc15"),
+          label: planStats.label,
+          kind: "telegraph",
+        },
         {
           id: nextId + 500,
           lane,
@@ -1096,8 +1151,9 @@ export default function Home() {
         },
       ]);
       setNextId((id) => id + 3);
-      addLog(`${playerName(selectedToPlay.owner)} lanzo ${selectedToPlay.name} en carril ${lane + 1}${lane === laneMood.hot ? " con golpe critico" : ""}.`);
+      addLog(`${playerName(selectedToPlay.owner)} uso ${attackPlanLabels[currentAttackPlan]} con ${selectedToPlay.name} en carril ${lane + 1}${lane === laneMood.hot ? " critico" : ""}.`);
       setTurnPlayed(true);
+      setAimLane(null);
       finishCardUse(selectedToPlay.owner, selectedToPlay.id);
       return;
     }
@@ -1146,6 +1202,7 @@ export default function Home() {
     ]);
     addLog(`${playerName(selectedToPlay.owner)} puso ${selectedToPlay.name} en carril ${lane + 1}${boosted ? " con blindaje extra" : ""}.`);
     setTurnPlayed(true);
+    setAimLane(null);
     finishCardUse(selectedToPlay.owner, selectedToPlay.id);
   }
 
@@ -1160,6 +1217,7 @@ export default function Home() {
     setUsedCards({ p1: [], p2: [] });
     setTurnPlayed(false);
     setTension(0);
+    setAimLane(null);
     setLaneMood(laneMoodForRound(round + 1));
     setDefenses((current) => ({
       p1: current.p1.map((card) => ({ ...card, used: false })),
@@ -1209,7 +1267,15 @@ export default function Home() {
     const next = otherPlayer(phasePlayer);
     setRunning(false);
     setTurnPlayed(false);
+    setAimLane(null);
     goPrivate(next, "battle");
+  }
+
+  function changeAttackPlan(plan: AttackPlan) {
+    setAttackPlans((current) => ({
+      ...current,
+      [phasePlayer]: plan,
+    }));
   }
 
   function continueBattle() {
@@ -1512,11 +1578,16 @@ export default function Home() {
                 const laneLocked = !canPlayThisTurn || ownDefenseHere;
                 const incomingP1 = projectiles.filter((item) => item.owner === "p2" && item.lane === lane).length;
                 const incomingP2 = projectiles.filter((item) => item.owner === "p1" && item.lane === lane).length;
+                const aimTarget = previewTargets.find((target) => target.lane === lane);
                 return (
                 <button
                   key={lane}
                   className={`lane ${canPlayThisTurn ? "readyLane" : "lockedLane"} ${ownDefenseHere ? "blockedLane" : ""} ${lane === laneMood.hot ? "hotLane" : ""} ${lane === laneMood.shielded ? "shieldLane" : ""}`}
                   onClick={() => playLane(lane)}
+                  onPointerEnter={() => setAimLane(lane)}
+                  onFocus={() => setAimLane(lane)}
+                  onPointerLeave={() => setAimLane(null)}
+                  onBlur={() => setAimLane(null)}
                   disabled={laneLocked}
                   aria-label={`carril ${lane + 1}`}
                   title={ownDefenseHere ? "ya tienes defensa aqui" : canPlayThisTurn ? "jugar aqui" : "turno bloqueado"}
@@ -1526,6 +1597,7 @@ export default function Home() {
                   {lane === laneMood.shielded && <span className="laneBadge shield">def</span>}
                   {incomingP1 > 0 && <span className="dangerPip p1">{incomingP1}</span>}
                   {incomingP2 > 0 && <span className="dangerPip p2">{incomingP2}</span>}
+                  {aimTarget && <span className={aimTarget.main ? "aimGhost main" : "aimGhost splash"} />}
                   {canPlayThisTurn && <span className="laneCue">jugar</span>}
                   {placedDefenses
                     .filter((item) => item.lane === lane)
@@ -1549,7 +1621,7 @@ export default function Home() {
                     .map((item) => (
                       <span
                         key={item.id}
-                        className={`shot ${item.owner} ${item.tier} ${item.behavior} ${item.charge > 0 ? "charging" : ""}`}
+                        className={`shot ${item.owner} ${item.tier} ${item.behavior} plan-${item.plan} ${item.charge > 0 ? "charging" : ""}`}
                         style={{ left: `${item.x}%`, width: item.size, height: item.size }}
                         title={item.name}
                       >
@@ -1600,6 +1672,26 @@ export default function Home() {
                 <span>pasar turno</span>
               </button>
             </div>
+            {selectedToPlay.kind === "attack" && (
+              <div className="attackPlanBar" aria-label="Modo de ataque">
+                {([
+                  ["potencia", Zap],
+                  ["rapida", Gauge],
+                  ["control", Crosshair],
+                ] as [AttackPlan, typeof Zap][]).map(([plan, Icon]) => (
+                  <button
+                    key={plan}
+                    className={currentAttackPlan === plan ? "active" : ""}
+                    onClick={() => changeAttackPlan(plan)}
+                    disabled={turnPlayed}
+                    title={attackPlanTips[plan]}
+                  >
+                    <Icon size={16} strokeWidth={2.8} />
+                    <span>{attackPlanLabels[plan]}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <Deck
               attacks={attacks[phasePlayer]}
               defenses={defenses[phasePlayer]}
@@ -1649,6 +1741,11 @@ export default function Home() {
             <span>6</span>
             <h2>Tension</h2>
             <p>Si la ronda se alarga, la tension sube. A partir de 70%, los ataques pegan un poco mas fuerte.</p>
+          </div>
+          <div className="ruleCard">
+            <span>7</span>
+            <h2>Modo de ataque</h2>
+            <p>Antes de lanzar puedes elegir golpe fuerte, salida rapida o control. La sombra del carril muestra donde caera.</p>
           </div>
           <button className="resetButton" onClick={resetMatch}>empezar partida nueva</button>
         </section>
