@@ -9,6 +9,7 @@ type DefenseTier = "normal" | "hyper";
 type AttackBehavior = "rapido" | "pesado" | "doble" | "cargado" | "rompedefensa";
 type DefenseBehavior = "bloqueo" | "reflector" | "absorbe";
 type CharacterId = "planner" | "tank" | "shield" | "charger";
+type PaintTool = "pencil" | "eraser" | "fill" | "picker";
 
 type Pixel = string | null;
 type PixelArt = Pixel[];
@@ -70,6 +71,8 @@ type Blast = {
   x: number;
   ttl: number;
   color: string;
+  label?: string;
+  kind?: "cast" | "hit" | "base";
 };
 
 type PlayerState = {
@@ -369,6 +372,7 @@ function PixelEditor({
 }) {
   const [color, setColor] = useState(colors[2]);
   const [painting, setPainting] = useState(false);
+  const [tool, setTool] = useState<PaintTool>("pencil");
 
   function paint(index: number) {
     const next = [...artPixels];
@@ -382,6 +386,37 @@ function PixelEditor({
     onChange(next);
   }
 
+  function fill(index: number) {
+    const target = artPixels[index];
+    if (target === color) return;
+    const next = [...artPixels];
+    const stack = [index];
+    const seen = new Set<number>();
+    while (stack.length) {
+      const current = stack.pop();
+      if (current === undefined || seen.has(current) || next[current] !== target) continue;
+      seen.add(current);
+      next[current] = color;
+      const x = current % gridSize;
+      const y = Math.floor(current / gridSize);
+      if (x > 0) stack.push(current - 1);
+      if (x < gridSize - 1) stack.push(current + 1);
+      if (y > 0) stack.push(current - gridSize);
+      if (y < gridSize - 1) stack.push(current + gridSize);
+    }
+    onChange(next);
+  }
+
+  function applyTool(index: number) {
+    if (tool === "eraser") erase(index);
+    else if (tool === "fill") fill(index);
+    else if (tool === "picker") {
+      const picked = artPixels[index];
+      if (picked) setColor(picked);
+      setTool("pencil");
+    } else paint(index);
+  }
+
   function mirror() {
     const next = [...emptyArt];
     for (let y = 0; y < gridSize; y += 1) {
@@ -392,8 +427,44 @@ function PixelEditor({
     onChange(next);
   }
 
+  function rotate() {
+    const next = [...emptyArt];
+    for (let y = 0; y < gridSize; y += 1) {
+      for (let x = 0; x < gridSize; x += 1) {
+        next[x * gridSize + (gridSize - 1 - y)] = artPixels[y * gridSize + x];
+      }
+    }
+    onChange(next);
+  }
+
+  function shift(dx: number, dy: number) {
+    const next = [...emptyArt];
+    for (let y = 0; y < gridSize; y += 1) {
+      for (let x = 0; x < gridSize; x += 1) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+          next[ny * gridSize + nx] = artPixels[y * gridSize + x];
+        }
+      }
+    }
+    onChange(next);
+  }
+
   return (
     <div className="pixelEditor">
+      <div className="toolStrip" aria-label="Herramientas de dibujo">
+        {([
+          ["pencil", "lapiz"],
+          ["eraser", "goma"],
+          ["fill", "relleno"],
+          ["picker", "color"],
+        ] as [PaintTool, string][]).map(([value, label]) => (
+          <button key={value} className={tool === value ? "active" : ""} onClick={() => setTool(value)}>
+            {label}
+          </button>
+        ))}
+      </div>
       <div
         className="pixelBoard"
         onPointerLeave={() => setPainting(false)}
@@ -408,10 +479,10 @@ function PixelEditor({
               event.preventDefault();
               setPainting(true);
               if (event.button === 2) erase(index);
-              else paint(index);
+              else applyTool(index);
             }}
             onPointerEnter={() => {
-              if (painting) paint(index);
+              if (painting && (tool === "pencil" || tool === "eraser")) applyTool(index);
             }}
             onContextMenu={(event) => {
               event.preventDefault();
@@ -434,6 +505,13 @@ function PixelEditor({
         </div>
         <button className="toolButton" onClick={() => onChange([...emptyArt])}>limpiar</button>
         <button className="toolButton" onClick={mirror}>espejo</button>
+        <button className="toolButton" onClick={rotate}>rotar</button>
+      </div>
+      <div className="nudgeTools" aria-label="Mover dibujo">
+        <button onClick={() => shift(0, -1)}>arriba</button>
+        <button onClick={() => shift(-1, 0)}>izq</button>
+        <button onClick={() => shift(1, 0)}>der</button>
+        <button onClick={() => shift(0, 1)}>abajo</button>
       </div>
     </div>
   );
@@ -449,16 +527,17 @@ function CardView({
   onClick: () => void;
 }) {
   const label = card.kind === "attack" ? card.tier : `${card.tier} defensa`;
+  const cost = card.kind === "attack" ? attackStats(card).cost : "D";
+  const mechanic = card.kind === "attack" ? attackLabels[card.behavior] : defenseLabels[card.behavior];
   return (
-    <button className={`card ${card.owner} ${active ? "active" : ""}`} onClick={onClick}>
-      <PixelSprite art={card.art} />
+    <button className={`card ${card.owner} ${card.kind} ${card.kind === "attack" ? card.tier : card.tier} ${active ? "active" : ""}`} onClick={onClick}>
+      <span className="cardRibbon">{label}</span>
+      <span className={card.kind === "defense" && card.used ? "cardUsed" : "cardCost"}>{card.kind === "defense" && card.used ? "usada" : cost}</span>
+      <span className="cardArtFrame">
+        <PixelSprite art={card.art} />
+      </span>
       <span className="cardName">{card.name}</span>
-      <span className="cardMeta">{label}</span>
-      {card.kind === "attack" ? (
-        <span className="cardCost">{attackStats(card).cost}</span>
-      ) : (
-        <span className={card.used ? "cardUsed" : "cardCost"}>{card.used ? "usada" : "def"}</span>
-      )}
+      <span className="cardMeta">{mechanic}</span>
     </button>
   );
 }
@@ -505,6 +584,17 @@ function CardEditor({
             nombre
             <input value={selected.name} onChange={(event) => updateName(event.target.value)} />
           </label>
+
+          <div className={`editorPreview ${selected.kind === "attack" ? selected.tier : "defense"}`}>
+            <span>vista de carta</span>
+            <PixelSprite art={selected.art} />
+            <strong>{selected.name}</strong>
+            <small>
+              {selected.kind === "attack"
+                ? `${selected.tier} / ${attackLabels[selected.behavior]}`
+                : `${selected.tier} / ${defenseLabels[selected.behavior]}`}
+            </small>
+          </div>
 
           <div className="templateBox">
             <span>plantillas rapidas</span>
@@ -735,6 +825,18 @@ export default function Home() {
         charge: stats.charge,
       }));
       setProjectiles((current) => [...current, ...created]);
+      setBlasts((current) => [
+        ...current,
+        {
+          id: nextId + 500,
+          lane,
+          x: selectedToPlay.owner === "p1" ? 8 : 92,
+          ttl: 8,
+          color: primaryColor(selectedToPlay.art, "#facc15"),
+          label: "LANZA",
+          kind: "cast",
+        },
+      ]);
       setNextId((id) => id + 3);
       addLog(`${playerName(selectedToPlay.owner)} lanzo ${selectedToPlay.name} en carril ${lane + 1}.`);
       return;
@@ -762,6 +864,18 @@ export default function Home() {
     ]);
     setNextId((id) => id + 1);
     updateDefense({ ...selectedToPlay, used: true });
+    setBlasts((current) => [
+      ...current,
+      {
+        id: nextId + 700,
+        lane,
+        x: selectedToPlay.owner === "p1" ? 14 : 82,
+        ttl: 8,
+        color: primaryColor(selectedToPlay.art, "#38bdf8"),
+        label: "DEF",
+        kind: "cast",
+      },
+    ]);
     addLog(`${playerName(selectedToPlay.owner)} puso ${selectedToPlay.name} en carril ${lane + 1}.`);
   }
 
@@ -877,6 +991,8 @@ export default function Home() {
               x: shot.x,
               ttl: 6,
               color: primaryColor(shot.art, "#facc15"),
+              label: pierce ? "ROMPE" : "HIT",
+              kind: "hit",
             });
             if (defense.behavior === "reflector" && shot.tier !== "hyper") {
               reflected.push({
@@ -914,6 +1030,8 @@ export default function Home() {
               x: (a.x + b.x) / 2,
               ttl: 5,
               color: "#ffffff",
+              label: "CHOQUE",
+              kind: "hit",
             });
           }
         }
@@ -921,10 +1039,28 @@ export default function Home() {
         const survived = [...changed, ...reflected].filter((shot) => {
           if (shot.owner === "p1" && shot.x >= 97) {
             baseDamage.p2 = (baseDamage.p2 ?? 0) + shot.damage;
+            newBlasts.push({
+              id: nextId + 800 + shot.id,
+              lane: shot.lane,
+              x: 96,
+              ttl: 8,
+              color: primaryColor(shot.art, "#fb7185"),
+              label: `-${Math.round(shot.damage)}`,
+              kind: "base",
+            });
             return false;
           }
           if (shot.owner === "p2" && shot.x <= 3) {
             baseDamage.p1 = (baseDamage.p1 ?? 0) + shot.damage;
+            newBlasts.push({
+              id: nextId + 900 + shot.id,
+              lane: shot.lane,
+              x: 4,
+              ttl: 8,
+              color: primaryColor(shot.art, "#38bdf8"),
+              label: `-${Math.round(shot.damage)}`,
+              kind: "base",
+            });
             return false;
           }
           return shot.x > -8 && shot.x < 108 && shot.hp > 0;
@@ -1100,9 +1236,11 @@ export default function Home() {
                     .map((item) => (
                       <span
                         key={item.id}
-                        className="blast"
+                        className={`blast ${item.kind ?? "hit"}`}
                         style={{ left: `${item.x}%`, backgroundColor: item.color }}
-                      />
+                      >
+                        {item.label && <em>{item.label}</em>}
+                      </span>
                     ))}
                 </button>
               ))}

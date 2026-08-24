@@ -485,30 +485,82 @@ h1 {
 
 .card {
   position: relative;
-  min-height: 68px;
+  min-height: 154px;
   display: grid;
-  grid-template-columns: 46px 1fr;
-  grid-template-rows: 1fr auto;
-  gap: 2px 8px;
-  border: 2px solid #475569;
-  background: #0f172a;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 6px;
+  border: 3px solid #475569;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .08), transparent 34%),
+    #0f172a;
   color: #f8fafc;
-  padding: 7px;
-  text-align: left;
+  padding: 10px;
+  text-align: center;
+  box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .42), 4px 4px 0 #000000;
+  transition: transform 120ms steps(2), border-color 120ms steps(2);
 }
 
 .card.p1.active {
   border-color: var(--blue);
+  transform: translate(-2px, -2px);
 }
 
 .card.p2.active {
   border-color: var(--red);
+  transform: translate(-2px, -2px);
+}
+
+.card.normal {
+  --rarity: #94a3b8;
+}
+
+.card.super {
+  --rarity: #facc15;
+}
+
+.card.hyper {
+  --rarity: #a855f7;
+}
+
+.card.defense {
+  --rarity: #38bdf8;
+}
+
+.cardRibbon {
+  justify-self: start;
+  max-width: calc(100% - 34px);
+  overflow: hidden;
+  border: 2px solid #0f172a;
+  background: var(--rarity);
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 950;
+  padding: 2px 6px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cardArtFrame {
+  display: grid;
+  place-items: center;
+  min-height: 70px;
+  border: 2px solid #334155;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, .16), transparent 55%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, .06) 0 6px, transparent 6px 12px),
+    #111827;
+}
+
+.cardArtFrame .pixelSprite {
+  width: 58px;
+  height: 58px;
 }
 
 .cardName {
-  align-self: end;
   overflow: hidden;
-  font-size: 13px;
+  min-height: 17px;
+  font-size: 14px;
   font-weight: 950;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -525,16 +577,18 @@ h1 {
 .cardCost,
 .cardUsed {
   position: absolute;
-  right: 5px;
-  top: 5px;
-  min-width: 24px;
-  height: 22px;
+  right: 8px;
+  top: 8px;
+  min-width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   background: var(--yellow);
   color: #111827;
-  font-size: 11px;
+  border: 2px solid #0f172a;
+  font-size: 14px;
   font-weight: 950;
+  box-shadow: 2px 2px 0 #000000;
 }
 
 .cardUsed {
@@ -544,7 +598,7 @@ h1 {
 }
 
 .editMini {
-  width: 44px;
+  width: 42px;
   border: 2px solid #475569;
   background: #151c2c;
   color: #cbd5e1;
@@ -662,7 +716,38 @@ h1 {
 }
 
 .shot {
+  z-index: 6;
   filter: drop-shadow(4px 4px 0 rgba(0, 0, 0, .55));
+  transition: left 230ms linear;
+}
+
+.shot::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  width: 60px;
+  height: 12px;
+  opacity: .75;
+  background: linear-gradient(90deg, transparent, currentColor);
+  transform: translateY(-50%);
+}
+
+.shot.p1::before {
+  right: 54%;
+}
+
+.shot.p2::before {
+  left: 54%;
+  transform: translateY(-50%) scaleX(-1);
+}
+
+.shot.p1 {
+  color: var(--blue);
+}
+
+.shot.p2 {
+  color: var(--red);
 }
 
 .shot.p1 {
@@ -706,11 +791,43 @@ h1 {
 }
 
 .blast {
-  width: 36px;
-  height: 36px;
+  z-index: 8;
+  width: 44px;
+  height: 44px;
   opacity: .88;
   clip-path: polygon(50% 0, 60% 32%, 100% 20%, 68% 50%, 100% 80%, 60% 68%, 50% 100%, 40% 68%, 0 80%, 32% 50%, 0 20%, 40% 32%);
   animation: blast 420ms steps(3) forwards;
+}
+
+.blast.cast {
+  clip-path: none;
+  border: 3px solid #ffffff;
+  background-color: transparent !important;
+  animation: castPulse 620ms steps(4) forwards;
+}
+
+.blast.base {
+  clip-path: none;
+  width: auto;
+  min-width: 44px;
+  height: 26px;
+  background: #0f172a !important;
+  border: 2px solid currentColor;
+  color: #ffffff;
+  animation: floatLabel 820ms steps(4) forwards;
+}
+
+.blast em {
+  position: absolute;
+  left: 50%;
+  top: -18px;
+  min-width: max-content;
+  color: #ffffff;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 950;
+  text-shadow: 2px 2px 0 #000000;
+  transform: translateX(-50%);
 }
 
 .winner {
@@ -792,6 +909,30 @@ h1 {
   gap: 10px;
 }
 
+.toolStrip,
+.nudgeTools {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.toolStrip button,
+.nudgeTools button {
+  min-height: 32px;
+  border: 2px solid #475569;
+  background: #151c2c;
+  color: #e5e7eb;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.toolStrip .active {
+  border-color: var(--yellow);
+  background: #0f172a;
+  color: var(--yellow);
+}
+
 .pixelBoard {
   display: grid;
   grid-template-columns: repeat(16, 1fr);
@@ -815,7 +956,7 @@ h1 {
 
 .paintTools {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 8px;
 }
 
@@ -866,6 +1007,61 @@ h1 {
   color: #f8fafc;
   padding: 0 10px;
   font-weight: 800;
+}
+
+.editorPreview {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  border: 3px solid #475569;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.1), transparent),
+    #0f172a;
+  padding: 12px;
+  box-shadow: inset 0 0 0 3px #000000;
+}
+
+.editorPreview.super {
+  border-color: var(--yellow);
+}
+
+.editorPreview.hyper {
+  border-color: #a855f7;
+}
+
+.editorPreview.defense {
+  border-color: var(--blue);
+}
+
+.editorPreview > span {
+  justify-self: start;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.editorPreview .pixelSprite {
+  width: 86px;
+  height: 86px;
+  border: 2px solid #334155;
+  background: #111827;
+  padding: 6px;
+}
+
+.editorPreview strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 18px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.editorPreview small {
+  color: #cbd5e1;
+  font-weight: 850;
+  text-transform: uppercase;
 }
 
 .statBox,
@@ -997,6 +1193,28 @@ h1 {
   }
   to {
     transform: translate(-50%, -50%) scale(1.8);
+    opacity: 0;
+  }
+}
+
+@keyframes castPulse {
+  from {
+    transform: translate(-50%, -50%) scale(.4);
+    opacity: 1;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(2.2);
+    opacity: 0;
+  }
+}
+
+@keyframes floatLabel {
+  from {
+    transform: translate(-50%, -50%) translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translate(-50%, -50%) translateY(-34px);
     opacity: 0;
   }
 }
