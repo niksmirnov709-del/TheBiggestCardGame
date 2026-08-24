@@ -6,11 +6,15 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  BookOpen,
   Eraser,
   FlipHorizontal,
+  LogOut,
   PaintBucket,
   Pencil,
   Pipette,
+  Play,
+  Plus,
   RotateCw,
   Square,
   Trash2,
@@ -650,11 +654,13 @@ function CardView({
   card,
   active,
   spent,
+  locked,
   onClick,
 }: {
   card: GameCard;
   active?: boolean;
   spent?: boolean;
+  locked?: boolean;
   onClick: () => void;
 }) {
   const label = card.kind === "attack" ? card.tier : `${card.tier} defensa`;
@@ -664,7 +670,11 @@ function CardView({
       ? `${speedLabels[card.speedMode]} / ${attackLabels[card.behavior]}`
       : defenseLabels[card.behavior];
   return (
-    <button className={`card ${card.owner} ${card.kind} ${card.kind === "attack" ? card.tier : card.tier} ${active ? "active" : ""} ${spent ? "spent" : ""}`} onClick={onClick}>
+    <button
+      className={`card ${card.owner} ${card.kind} ${card.kind === "attack" ? card.tier : card.tier} ${active ? "active" : ""} ${spent ? "spent" : ""} ${locked ? "locked" : ""}`}
+      onClick={onClick}
+      disabled={spent || locked}
+    >
       <span className="cardRibbon">{label}</span>
       <span className={spent ? "cardUsed" : "cardCost"}>{spent ? "usada" : badge}</span>
       <span className="cardArtFrame">
@@ -887,6 +897,7 @@ export default function Home() {
     p2: { baseHp: 100, character: "planner", shieldReady: true },
   });
   const [usedCards, setUsedCards] = useState<Record<PlayerId, string[]>>({ p1: [], p2: [] });
+  const [turnPlayed, setTurnPlayed] = useState(false);
   const [projectiles, setProjectiles] = useState<Projectile[]>([]);
   const [placedDefenses, setPlacedDefenses] = useState<Defense[]>([]);
   const [blasts, setBlasts] = useState<Blast[]>([]);
@@ -901,6 +912,13 @@ export default function Home() {
   );
   const selectedForEdit = allCards.find((card) => card.id === selectedId) ?? attacks.p1[0];
   const winner = players.p1.baseHp <= 0 ? "Jugador 2" : players.p2.baseHp <= 0 ? "Jugador 1" : "";
+  const selectedIsUsed = usedCards[phasePlayer].includes(selectedToPlay.id);
+  const canPlayThisTurn =
+    screen === "battle" &&
+    !winner &&
+    !turnPlayed &&
+    selectedToPlay.owner === phasePlayer &&
+    !selectedIsUsed;
 
   function addLog(message: string) {
     setLog((current) => [message, ...current].slice(0, 6));
@@ -917,6 +935,7 @@ export default function Home() {
     if (coverNext === "battle") {
       const firstCard = selectFirstReady(phasePlayer);
       if (firstCard) setSelectedToPlay(firstCard);
+      setTurnPlayed(false);
       addLog(`${playerName(phasePlayer)} tiene el turno.`);
     }
     if (coverNext === "build") {
@@ -932,6 +951,7 @@ export default function Home() {
       p2: { baseHp: 100, character: "planner", shieldReady: true },
     });
     setUsedCards({ p1: [], p2: [] });
+    setTurnPlayed(false);
     setProjectiles([]);
     setPlacedDefenses([]);
     setBlasts([]);
@@ -980,6 +1000,7 @@ export default function Home() {
     const p1Done = allCardsUsed("p1", nextUsed);
     const p2Done = allCardsUsed("p2", nextUsed);
     if (p1Done && p2Done) {
+      setTurnPlayed(false);
       window.setTimeout(() => nextRound(), 650);
       return;
     }
@@ -988,18 +1009,17 @@ export default function Home() {
       const next = otherPlayer(owner);
       const nextCard = selectFirstReady(next, nextUsed);
       if (nextCard) setSelectedToPlay(nextCard);
+      setRunning(false);
+      setTurnPlayed(false);
       window.setTimeout(() => goPrivate(next, "battle"), 450);
       addLog(`${playerName(owner)} gasto todas sus cartas. Turno de ${playerName(next)}.`);
-      return;
     }
-
-    const ready = selectFirstReady(owner, nextUsed);
-    if (ready) setSelectedToPlay(ready);
   }
 
   function playLane(lane: number) {
     if (winner) return;
     if (selectedToPlay.owner !== phasePlayer || screen !== "battle") return;
+    if (turnPlayed) return;
     if (usedCards[phasePlayer].includes(selectedToPlay.id)) return;
     if (selectedToPlay.kind === "attack") {
       const stats = attackStats(selectedToPlay);
@@ -1044,6 +1064,7 @@ export default function Home() {
       ]);
       setNextId((id) => id + 3);
       addLog(`${playerName(selectedToPlay.owner)} lanzo ${selectedToPlay.name} en carril ${lane + 1}.`);
+      setTurnPlayed(true);
       finishCardUse(selectedToPlay.owner, selectedToPlay.id);
       return;
     }
@@ -1052,7 +1073,10 @@ export default function Home() {
     const duplicate = placedDefenses.some(
       (item) => item.owner === selectedToPlay.owner && item.lane === lane,
     );
-    if (duplicate) return;
+    if (duplicate) {
+      addLog(`Ese carril ya tiene una defensa de ${playerName(selectedToPlay.owner)}.`);
+      return;
+    }
     setPlacedDefenses((current) => [
       ...current,
       {
@@ -1083,6 +1107,7 @@ export default function Home() {
       },
     ]);
     addLog(`${playerName(selectedToPlay.owner)} puso ${selectedToPlay.name} en carril ${lane + 1}.`);
+    setTurnPlayed(true);
     finishCardUse(selectedToPlay.owner, selectedToPlay.id);
   }
 
@@ -1095,6 +1120,7 @@ export default function Home() {
     setProjectiles([]);
     setPlacedDefenses((current) => current.filter((item) => item.ttl > 8));
     setUsedCards({ p1: [], p2: [] });
+    setTurnPlayed(false);
     setDefenses((current) => ({
       p1: current.p1.map((card) => ({ ...card, used: false })),
       p2: current.p2.map((card) => ({ ...card, used: false })),
@@ -1129,14 +1155,20 @@ export default function Home() {
     addLog(`${playerName(phasePlayer)} cerro sus cartas.`);
     if (phasePlayer === "p1") goPrivate("p2", "build");
     else {
+      setTurnPlayed(false);
       setRunning(true);
       goPrivate("p1", "battle");
     }
   }
 
   function changeTurn() {
+    if (!turnPlayed || winner) {
+      addLog("Primero tienes que usar una carta en un carril.");
+      return;
+    }
     const next = otherPlayer(phasePlayer);
     setRunning(false);
+    setTurnPlayed(false);
     goPrivate(next, "battle");
   }
 
@@ -1330,9 +1362,17 @@ export default function Home() {
           <h1>Card Lane Duel</h1>
         </div>
         <nav className="tabs" aria-label="Menu">
-          <button className={screen === "menu" ? "active" : ""} onClick={() => setScreen("menu")}>menu</button>
-          <button className={screen === "rules" ? "active" : ""} onClick={() => setScreen("rules")}>reglas</button>
-          <button onClick={newGame}>nuevo juego</button>
+          <button className={screen === "menu" ? "active" : ""} onClick={() => setScreen("menu")} title="menu">
+            <span>menu</span>
+          </button>
+          <button className={screen === "rules" ? "active" : ""} onClick={() => setScreen("rules")} title="reglas">
+            <BookOpen size={16} strokeWidth={2.8} />
+            <span>reglas</span>
+          </button>
+          <button onClick={newGame} title="nuevo juego">
+            <Plus size={16} strokeWidth={2.8} />
+            <span>nuevo</span>
+          </button>
         </nav>
       </header>
 
@@ -1404,9 +1444,11 @@ export default function Home() {
 
           <section className="arenaPanel tableArena">
             <div className="roundBar">
-              <button onClick={() => setRunning((value) => !value)}>{running ? "pausar" : "seguir"}</button>
+              <button onClick={() => setRunning((value) => !value)} title={running ? "pausar" : "seguir"}>
+                {running ? <span>pausar</span> : <><Play size={16} strokeWidth={2.8} /><span>seguir</span></>}
+              </button>
               <strong>Ronda {round}</strong>
-              <span>pista central</span>
+              <span>{turnPlayed ? "turno jugado" : "elige carril"}</span>
             </div>
 
             <div className="arenaBoard">
@@ -1417,9 +1459,22 @@ export default function Home() {
                 <span>{Math.round(players.p2.baseHp)}</span>
               </div>
 
-              {lanes.map((lane) => (
-                <button key={lane} className="lane" onClick={() => playLane(lane)}>
+              {lanes.map((lane) => {
+                const ownDefenseHere =
+                  selectedToPlay.kind === "defense" &&
+                  placedDefenses.some((item) => item.owner === phasePlayer && item.lane === lane);
+                const laneLocked = !canPlayThisTurn || ownDefenseHere;
+                return (
+                <button
+                  key={lane}
+                  className={`lane ${canPlayThisTurn ? "readyLane" : "lockedLane"} ${ownDefenseHere ? "blockedLane" : ""}`}
+                  onClick={() => playLane(lane)}
+                  disabled={laneLocked}
+                  aria-label={`carril ${lane + 1}`}
+                  title={ownDefenseHere ? "ya tienes defensa aqui" : canPlayThisTurn ? "jugar aqui" : "turno bloqueado"}
+                >
                   <span className="laneNumber">{lane + 1}</span>
+                  {canPlayThisTurn && <span className="laneCue">jugar</span>}
                   {placedDefenses
                     .filter((item) => item.lane === lane)
                     .map((item) => {
@@ -1461,7 +1516,8 @@ export default function Home() {
                       </span>
                     ))}
                 </button>
-              ))}
+              );
+              })}
               {winner && <div className="winner">{winner} gana</div>}
             </div>
           </section>
@@ -1471,8 +1527,9 @@ export default function Home() {
               <div className="turnBanner">
                 <span>mano actual</span>
                 <strong>{playerName(phasePlayer)}</strong>
+                <em>{turnPlayed ? "ya jugaste: pasa el turno" : "1 carta por turno"}</em>
               </div>
-              <div className="selectedPlay">
+              <div className={`selectedPlay ${turnPlayed ? "played" : ""}`}>
                 <PixelSprite art={selectedToPlay.art} small />
                 <span>
                   seleccionada: <strong>{selectedToPlay.name}</strong>
@@ -1483,13 +1540,17 @@ export default function Home() {
                     : `${selectedToPlay.tier} / ${defenseLabels[selectedToPlay.behavior]}`}
                 </small>
               </div>
-              <button className="resetButton" onClick={changeTurn}>cambiar turno</button>
+              <button className="resetButton endTurnButton" onClick={changeTurn} disabled={!turnPlayed || !!winner}>
+                <LogOut size={18} strokeWidth={2.8} />
+                <span>pasar turno</span>
+              </button>
             </div>
             <Deck
               attacks={attacks[phasePlayer]}
               defenses={defenses[phasePlayer]}
               selected={selectedToPlay}
               usedIds={usedCards[phasePlayer]}
+              locked={turnPlayed}
               allowEdit={false}
               onSelect={(card) => setSelectedToPlay(card)}
               onEdit={() => undefined}
@@ -1633,6 +1694,7 @@ function Deck({
   defenses,
   selected,
   usedIds = [],
+  locked = false,
   allowEdit = true,
   onSelect,
   onEdit,
@@ -1641,6 +1703,7 @@ function Deck({
   defenses: DefenseCard[];
   selected: GameCard;
   usedIds?: string[];
+  locked?: boolean;
   allowEdit?: boolean;
   onSelect: (card: GameCard) => void;
   onEdit: (card: GameCard) => void;
@@ -1651,7 +1714,7 @@ function Deck({
         <span className="deckLabel">ataques</span>
         {attacks.map((card) => (
           <div key={card.id} className="cardWrap">
-            <CardView card={card} active={selected.id === card.id} spent={usedIds.includes(card.id)} onClick={() => !usedIds.includes(card.id) && onSelect(card)} />
+            <CardView card={card} active={selected.id === card.id} spent={usedIds.includes(card.id)} locked={locked && selected.id !== card.id} onClick={() => onSelect(card)} />
             {allowEdit && <button className="editMini" onClick={() => onEdit(card)}>editar</button>}
           </div>
         ))}
@@ -1660,7 +1723,7 @@ function Deck({
         <span className="deckLabel">defensas</span>
         {defenses.map((card) => (
           <div key={card.id} className="cardWrap">
-            <CardView card={card} active={selected.id === card.id} spent={usedIds.includes(card.id)} onClick={() => !usedIds.includes(card.id) && onSelect(card)} />
+            <CardView card={card} active={selected.id === card.id} spent={usedIds.includes(card.id)} locked={locked && selected.id !== card.id} onClick={() => onSelect(card)} />
             {allowEdit && <button className="editMini" onClick={() => onEdit(card)}>editar</button>}
           </div>
         ))}
