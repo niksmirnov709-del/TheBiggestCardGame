@@ -575,6 +575,17 @@ h1 {
   padding: 10px;
 }
 
+.playerStatus {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.playerStatus .bars {
+  grid-column: 1 / -1;
+}
+
 .playerStatus span {
   color: #cbd5e1;
   font-size: 12px;
@@ -626,6 +637,10 @@ h1 {
 
 .characterPick button {
   min-height: 72px;
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 8px;
+  align-items: center;
   border: 2px solid #475569;
   background: #151c2c;
   color: #e5e7eb;
@@ -649,10 +664,40 @@ h1 {
 }
 
 .characterPick span {
+  grid-column: 2;
   margin-top: 4px;
   color: #94a3b8;
   font-size: 10px;
   line-height: 1.15;
+}
+
+.characterIcon {
+  width: 54px;
+  height: 54px;
+  display: block;
+  border: 2px solid rgba(255,255,255,.22);
+  border-radius: 7px;
+  background-image: url('/character-icons-pixel.png');
+  background-repeat: no-repeat;
+  background-size: 200% 200%;
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,.35), 0 6px 12px rgba(0,0,0,.24);
+  image-rendering: auto;
+}
+
+.characterIcon.planner {
+  background-position: 0% 0%;
+}
+
+.characterIcon.tank {
+  background-position: 100% 0%;
+}
+
+.characterIcon.shield {
+  background-position: 0% 100%;
+}
+
+.characterIcon.striker {
+  background-position: 100% 100%;
 }
 
 .deck {

@@ -861,12 +861,17 @@ function CharacterPick({
           className={state.character === id ? "active" : ""}
           onClick={() => onPick(id as CharacterId)}
         >
+          <CharacterIcon id={id as CharacterId} />
           <strong>{item.name}</strong>
           <span>{item.text}</span>
         </button>
       ))}
     </div>
   );
+}
+
+function CharacterIcon({ id }: { id: CharacterId }) {
+  return <i className={`characterIcon ${id}`} aria-hidden="true" />;
 }
 
 export default function Home() {
@@ -1604,8 +1609,11 @@ function OpponentSeat({ player, used, total }: { player: PlayerId; used: number;
 function PlayerStatus({ player, state }: { player: PlayerId; state: PlayerState }) {
   return (
     <div className={`playerStatus ${player}`}>
-      <span>{player === "p1" ? "Jugador 1" : "Jugador 2"}</span>
-      <strong>{characters[state.character].name}</strong>
+      <CharacterIcon id={state.character} />
+      <div>
+        <span>{player === "p1" ? "Jugador 1" : "Jugador 2"}</span>
+        <strong>{characters[state.character].name}</strong>
+      </div>
       <div className="bars">
         <label>
           base
