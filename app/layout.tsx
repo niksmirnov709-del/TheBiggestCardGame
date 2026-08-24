@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Paint Fighter Prototype',
-  description: 'Un prototipo jugable donde los personajes dibujados pelean con ataques inventados y balanceados.',
+  title: 'Card Lane Duel',
+  description: 'Prueba jugable de un duelo 1 vs 1 por carriles con cartas de ataque dibujadas en pixel art.',
 };
 
 export default function RootLayout({

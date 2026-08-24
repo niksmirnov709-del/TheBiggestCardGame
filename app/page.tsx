@@ -1,749 +1,1097 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type FighterId = "p1" | "p2";
-type Phase = "studio" | "battle";
-type AttackShape = "projectile" | "beam" | "burst" | "trap";
-type AttackEffect = "push" | "burn" | "slow" | "pierce";
+type PlayerId = "p1" | "p2";
+type Tab = "arena" | "cartas" | "reglas";
+type AttackTier = "normal" | "super" | "hyper";
+type DefenseTier = "normal" | "hyper";
+type AttackBehavior = "rapido" | "pesado" | "doble" | "cargado" | "rompedefensa";
+type DefenseBehavior = "bloqueo" | "reflector" | "absorbe";
+type CharacterId = "planner" | "tank" | "shield" | "charger";
 
-type Fighter = {
+type Pixel = string | null;
+type PixelArt = Pixel[];
+
+type AttackCard = {
+  id: string;
+  owner: PlayerId;
+  kind: "attack";
+  tier: AttackTier;
   name: string;
-  ink: string;
-  image: string;
-  hand: { x: number; y: number };
+  behavior: AttackBehavior;
+  art: PixelArt;
 };
 
-type AttackDraft = {
+type DefenseCard = {
+  id: string;
+  owner: PlayerId;
+  kind: "defense";
+  tier: DefenseTier;
   name: string;
-  fantasy: string;
-  shape: AttackShape;
-  effect: AttackEffect;
-  power: number;
+  behavior: DefenseBehavior;
+  art: PixelArt;
+  used: boolean;
 };
 
-type Ruleset = {
+type GameCard = AttackCard | DefenseCard;
+
+type Projectile = {
+  id: number;
+  owner: PlayerId;
+  lane: number;
+  x: number;
+  hp: number;
   damage: number;
-  cooldown: number;
   speed: number;
   size: number;
-  energyCost: number;
-  warning: string;
-  corrections: string[];
+  tier: AttackTier;
+  behavior: AttackBehavior;
+  name: string;
+  art: PixelArt;
+  charge: number;
+};
+
+type Defense = {
+  id: number;
+  owner: PlayerId;
+  lane: number;
+  hp: number;
+  ttl: number;
+  tier: DefenseTier;
+  behavior: DefenseBehavior;
+  name: string;
+  art: PixelArt;
+};
+
+type Blast = {
+  id: number;
+  lane: number;
+  x: number;
+  ttl: number;
+  color: string;
 };
 
 type PlayerState = {
-  x: number;
-  y: number;
-  vx: number;
-  hp: number;
+  baseHp: number;
   energy: number;
-  facing: number;
-  cooldown: number;
-  windup: number;
-  shield: number;
-  lastHit: number;
+  character: CharacterId;
+  shieldReady: boolean;
 };
 
-type Projectile = {
-  owner: FighterId;
-  x: number;
-  y: number;
-  vx: number;
-  life: number;
-  size: number;
-  damage: number;
-  effect: AttackEffect;
-  trail: string;
+const lanes = [0, 1, 2, 3, 4];
+const gridSize = 16;
+const emptyArt = Array<Pixel>(gridSize * gridSize).fill(null);
+const colors = [
+  "#111827",
+  "#ffffff",
+  "#ef4444",
+  "#f97316",
+  "#facc15",
+  "#22c55e",
+  "#06b6d4",
+  "#2563eb",
+  "#a855f7",
+  "#ec4899",
+  "#64748b",
+  "#78350f",
+];
+
+const attackLabels: Record<AttackBehavior, string> = {
+  rapido: "rapido",
+  pesado: "pesado",
+  doble: "doble",
+  cargado: "cargado",
+  rompedefensa: "rompe defensa",
 };
 
-const defaultFighters: Record<FighterId, Fighter> = {
-  p1: {
-    name: "Jugador 1",
-    ink: "#1d4ed8",
-    image: "",
-    hand: { x: 152, y: 96 },
+const defenseLabels: Record<DefenseBehavior, string> = {
+  bloqueo: "bloqueo",
+  reflector: "reflector",
+  absorbe: "absorbe energia",
+};
+
+const characters: Record<CharacterId, { name: string; text: string }> = {
+  planner: {
+    name: "Estratega",
+    text: "puede llevar 5 cartas de ataque cuando lo activemos",
   },
-  p2: {
-    name: "Jugador 2",
-    ink: "#be123c",
-    image: "",
-    hand: { x: 72, y: 96 },
+  tank: {
+    name: "Tanque",
+    text: "empieza con mas vida de base",
+  },
+  shield: {
+    name: "Guardian",
+    text: "tiene un escudo de emergencia una vez por partida",
+  },
+  charger: {
+    name: "Cargador",
+    text: "genera energia un poco mas rapido",
   },
 };
 
-const defaultAttacks: Record<FighterId, AttackDraft> = {
-  p1: {
-    name: "Rayo Mandoble",
-    fantasy: "Saca la mano, junta pintura azul y dispara una espada de energia.",
-    shape: "projectile",
-    effect: "push",
-    power: 5,
-  },
-  p2: {
-    name: "Bomba Garabato",
-    fantasy: "Tira una mancha viva que explota y deja lento al enemigo.",
-    shape: "burst",
-    effect: "slow",
-    power: 6,
-  },
+function artFromRows(rows: string[], map: Record<string, string>): PixelArt {
+  return rows.flatMap((row) =>
+    row.padEnd(gridSize, ".").slice(0, gridSize).split("").map((char) => map[char] ?? null),
+  );
+}
+
+const art = {
+  bolt: artFromRows(
+    [
+      "................",
+      "......YY........",
+      ".....YYYY.......",
+      "....YYYY........",
+      "...YYYY.........",
+      "....YYYYYY......",
+      ".....YYYYYY.....",
+      "......YYYY......",
+      "......YYY.......",
+      ".....YYY........",
+      "....YYY.........",
+      "...YYY..........",
+      "..YY............",
+      "................",
+      "................",
+      "................",
+    ],
+    { Y: "#facc15" },
+  ),
+  comet: artFromRows(
+    [
+      "................",
+      "................",
+      "...RR...........",
+      "..RROO..........",
+      ".RROOOO.........",
+      "RROOWWWO........",
+      ".ROWWWWOO.......",
+      "..OOWWWWO.......",
+      "...OOWWO........",
+      "....OOOO........",
+      ".....OO.........",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+    ],
+    { R: "#ef4444", O: "#f97316", W: "#ffffff" },
+  ),
+  shard: artFromRows(
+    [
+      "................",
+      ".......C........",
+      "......CCC.......",
+      ".....CCWC.......",
+      "....CCWWC.......",
+      "...CCWWWC.......",
+      "..CCWWWWC.......",
+      "...CCWWC........",
+      "....CCC.........",
+      ".....C..........",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+    ],
+    { C: "#06b6d4", W: "#ffffff" },
+  ),
+  drill: artFromRows(
+    [
+      "................",
+      "................",
+      ".......K........",
+      "......KKK.......",
+      ".....KKSKK......",
+      "....KKSSSKK.....",
+      "...KKSSSSSKK....",
+      "....KKSSSKK.....",
+      ".....KKSKK......",
+      "......KKK.......",
+      ".......K........",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+    ],
+    { K: "#111827", S: "#64748b" },
+  ),
+  wall: artFromRows(
+    [
+      "................",
+      "...BBBBBBBBBB...",
+      "...BWWBWWBWWB...",
+      "...BBBBBBBBBB...",
+      "...WWBWWBWWBW...",
+      "...BBBBBBBBBB...",
+      "...BWWBWWBWWB...",
+      "...BBBBBBBBBB...",
+      "...WWBWWBWWBW...",
+      "...BBBBBBBBBB...",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+    ],
+    { B: "#2563eb", W: "#93c5fd" },
+  ),
+  prism: artFromRows(
+    [
+      "................",
+      ".......P........",
+      "......PPP.......",
+      ".....PPWPP......",
+      "....PPWWWPP.....",
+      "...PPWWWWWPP....",
+      "...PPWWWWWPP....",
+      "....PPWWWPP.....",
+      ".....PPWPP......",
+      "......PPP.......",
+      ".......P........",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+    ],
+    { P: "#a855f7", W: "#ffffff" },
+  ),
 };
 
-const effectLabels: Record<AttackEffect, string> = {
-  push: "empuja",
-  burn: "quema",
-  slow: "ralentiza",
-  pierce: "atraviesa",
+const initialAttacks: Record<PlayerId, AttackCard[]> = {
+  p1: [
+    { id: "p1-a1", owner: "p1", kind: "attack", tier: "normal", name: "Chispa", behavior: "rapido", art: art.bolt },
+    { id: "p1-a2", owner: "p1", kind: "attack", tier: "normal", name: "Astilla", behavior: "doble", art: art.shard },
+    { id: "p1-a3", owner: "p1", kind: "attack", tier: "super", name: "Cometa", behavior: "pesado", art: art.comet },
+    { id: "p1-a4", owner: "p1", kind: "attack", tier: "hyper", name: "Taladro Hiper", behavior: "rompedefensa", art: art.drill },
+  ],
+  p2: [
+    { id: "p2-a1", owner: "p2", kind: "attack", tier: "normal", name: "Rayo Rosa", behavior: "rapido", art: tint(art.bolt, "#ec4899") },
+    { id: "p2-a2", owner: "p2", kind: "attack", tier: "normal", name: "Eco Doble", behavior: "doble", art: tint(art.shard, "#22c55e") },
+    { id: "p2-a3", owner: "p2", kind: "attack", tier: "super", name: "Bomba Pixel", behavior: "cargado", art: tint(art.comet, "#a855f7") },
+    { id: "p2-a4", owner: "p2", kind: "attack", tier: "hyper", name: "Perforador", behavior: "rompedefensa", art: art.drill },
+  ],
 };
 
-const shapeLabels: Record<AttackShape, string> = {
-  projectile: "proyectil recto",
-  beam: "rayo corto",
-  burst: "explosion",
-  trap: "trampa",
+const initialDefenses: Record<PlayerId, DefenseCard[]> = {
+  p1: [
+    { id: "p1-d1", owner: "p1", kind: "defense", tier: "normal", name: "Barrera", behavior: "bloqueo", art: art.wall, used: false },
+    { id: "p1-d2", owner: "p1", kind: "defense", tier: "hyper", name: "Prisma", behavior: "reflector", art: art.prism, used: false },
+  ],
+  p2: [
+    { id: "p2-d1", owner: "p2", kind: "defense", tier: "normal", name: "Muro Rosa", behavior: "bloqueo", art: tint(art.wall, "#ec4899"), used: false },
+    { id: "p2-d2", owner: "p2", kind: "defense", tier: "hyper", name: "Absorbe", behavior: "absorbe", art: tint(art.prism, "#22c55e"), used: false },
+  ],
 };
 
-const palette = ["#111827", "#1d4ed8", "#be123c", "#15803d", "#f59e0b", "#ffffff"];
+function tint(source: PixelArt, color: string): PixelArt {
+  return source.map((pixel) => (pixel && pixel !== "#ffffff" ? color : pixel));
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-function makeRules(attack: AttackDraft): Ruleset {
-  const shapeWeight = {
-    projectile: 1,
-    beam: 1.25,
-    burst: 1.45,
-    trap: 1.15,
-  }[attack.shape];
+function attackStats(card: AttackCard) {
+  const tier = {
+    normal: { cost: 2, damage: 11, hp: 10, speed: 8, size: 22, charge: 0 },
+    super: { cost: 5, damage: 25, hp: 24, speed: 4.8, size: 28, charge: 0 },
+    hyper: { cost: 8, damage: 42, hp: 38, speed: 3.7, size: 34, charge: 0 },
+  }[card.tier];
 
-  const effectWeight = {
-    push: 0.7,
-    burn: 1,
-    slow: 0.8,
-    pierce: 1.25,
-  }[attack.effect];
-
-  const raw = attack.power * shapeWeight + effectWeight;
-  const damage = Math.round(8 + raw * 2.7);
-  const cooldown = Number((1.2 + raw * 0.22).toFixed(1));
-  const speed = attack.shape === "beam" ? 8.5 : attack.shape === "burst" ? 5.4 : 6.8;
-  const size = attack.shape === "burst" ? 28 : attack.shape === "beam" ? 14 : 18;
-  const energyCost = Math.round(13 + raw * 3);
-
-  const corrections = [
-    "NO ataque infinito: le puse energia y recarga.",
-    "NO animar todo frame a frame: uso mano marcada + pose falsa.",
-    "NO perder la imaginacion: el nombre y la descripcion son libres.",
-  ];
-
-  if (attack.power >= 8 || attack.effect === "pierce") {
-    corrections.push("NO poder roto gratis: si atraviesa o pega fuerte, tarda mas.");
-  }
-
-  if (attack.shape === "burst") {
-    corrections.push("NO explosion imposible de esquivar: viaja mas lenta.");
-  }
+  const behavior = {
+    rapido: { cost: 0, damage: -2, hp: -2, speed: 2.7, charge: 0 },
+    pesado: { cost: 1, damage: 9, hp: 10, speed: -2, charge: 0 },
+    doble: { cost: 1, damage: -4, hp: -3, speed: 0.4, charge: 0 },
+    cargado: { cost: 0, damage: 12, hp: 3, speed: -1, charge: 1.2 },
+    rompedefensa: { cost: 1, damage: 4, hp: 8, speed: -1.2, charge: 0.3 },
+  }[card.behavior];
 
   return {
-    damage,
-    cooldown,
-    speed,
-    size,
-    energyCost,
-    warning:
-      attack.power > 7
-        ? "Fuerte, pero con castigo claro."
-        : "Raro, usable y todavia justo.",
-    corrections,
+    cost: tier.cost + behavior.cost,
+    damage: Math.max(4, tier.damage + behavior.damage),
+    hp: Math.max(3, tier.hp + behavior.hp),
+    speed: Math.max(1.8, tier.speed + behavior.speed),
+    size: tier.size,
+    charge: tier.charge + behavior.charge,
   };
 }
 
-function DrawingPad({
-  fighter,
+function defenseStats(card: DefenseCard) {
+  const tier = card.tier === "hyper" ? { hp: 76, ttl: 24, cost: 0 } : { hp: 38, ttl: 16, cost: 0 };
+  const behavior = {
+    bloqueo: { hp: 18, ttl: 0 },
+    reflector: { hp: -6, ttl: -4 },
+    absorbe: { hp: -2, ttl: 5 },
+  }[card.behavior];
+  return {
+    hp: Math.max(14, tier.hp + behavior.hp),
+    ttl: Math.max(8, tier.ttl + behavior.ttl),
+    cost: tier.cost,
+  };
+}
+
+function primaryColor(artPixels: PixelArt, fallback: string) {
+  return artPixels.find((pixel) => pixel && pixel !== "#ffffff") ?? fallback;
+}
+
+function PixelSprite({ art: artPixels, small = false }: { art: PixelArt; small?: boolean }) {
+  return (
+    <div className={small ? "pixelSprite small" : "pixelSprite"}>
+      {artPixels.map((pixel, index) => (
+        <span key={index} style={{ backgroundColor: pixel ?? "transparent" }} />
+      ))}
+    </div>
+  );
+}
+
+function PixelEditor({
+  art: artPixels,
   onChange,
 }: {
-  fighter: Fighter;
-  onChange: (fighter: Fighter) => void;
+  art: PixelArt;
+  onChange: (art: PixelArt) => void;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [mode, setMode] = useState<"draw" | "hand">("draw");
-  const [color, setColor] = useState(fighter.ink);
-  const [drawing, setDrawing] = useState(false);
+  const [color, setColor] = useState(colors[2]);
+  const [painting, setPainting] = useState(false);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.lineWidth = 9;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-  }, []);
-
-  function point(event: React.PointerEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
-      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
-    };
+  function paint(index: number) {
+    const next = [...artPixels];
+    next[index] = color;
+    onChange(next);
   }
 
-  function saveImage(nextHand = fighter.hand) {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    onChange({ ...fighter, image: canvas.toDataURL("image/png"), ink: color, hand: nextHand });
+  function erase(index: number) {
+    const next = [...artPixels];
+    next[index] = null;
+    onChange(next);
   }
 
-  function start(event: React.PointerEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    const pos = point(event);
-    if (mode === "hand") {
-      saveImage(pos);
-      return;
+  function mirror() {
+    const next = [...emptyArt];
+    for (let y = 0; y < gridSize; y += 1) {
+      for (let x = 0; x < gridSize; x += 1) {
+        next[y * gridSize + x] = artPixels[y * gridSize + (gridSize - 1 - x)];
+      }
     }
-    setDrawing(true);
-    canvas.setPointerCapture(event.pointerId);
-    ctx.strokeStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-  }
-
-  function move(event: React.PointerEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx || !drawing || mode !== "draw") return;
-    const pos = point(event);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    saveImage();
-  }
-
-  function stop() {
-    if (!drawing) return;
-    setDrawing(false);
-    saveImage();
-  }
-
-  function clear() {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    onChange({ ...fighter, image: canvas.toDataURL("image/png") });
+    onChange(next);
   }
 
   return (
-    <section className="studioPanel">
-      <div className="panelTitle">
-        <input
-          aria-label="Nombre del personaje"
-          value={fighter.name}
-          onChange={(event) => onChange({ ...fighter, name: event.target.value })}
-        />
-        <div className="modeSwitch">
-          <button className={mode === "draw" ? "active" : ""} onClick={() => setMode("draw")}>
-            dibujar
-          </button>
-          <button className={mode === "hand" ? "active" : ""} onClick={() => setMode("hand")}>
-            mano
-          </button>
-        </div>
+    <div className="pixelEditor">
+      <div
+        className="pixelBoard"
+        onPointerLeave={() => setPainting(false)}
+        onPointerUp={() => setPainting(false)}
+      >
+        {artPixels.map((pixel, index) => (
+          <button
+            key={index}
+            aria-label={`pixel ${index + 1}`}
+            style={{ backgroundColor: pixel ?? "#e5e7eb" }}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              setPainting(true);
+              if (event.button === 2) erase(index);
+              else paint(index);
+            }}
+            onPointerEnter={() => {
+              if (painting) paint(index);
+            }}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              erase(index);
+            }}
+          />
+        ))}
       </div>
-
-      <div className="canvasWrap">
-        <canvas
-          ref={canvasRef}
-          width={240}
-          height={220}
-          onPointerDown={start}
-          onPointerMove={move}
-          onPointerUp={stop}
-          onPointerCancel={stop}
-          aria-label={`Lienzo de ${fighter.name}`}
-        />
-        <span
-          className="handPin"
-          style={{
-            left: `${(fighter.hand.x / 240) * 100}%`,
-            top: `${(fighter.hand.y / 220) * 100}%`,
-          }}
-        />
-      </div>
-
-      <div className="tools">
-        <div className="swatches" aria-label="Colores">
-          {palette.map((item) => (
+      <div className="paintTools">
+        <div className="palette" aria-label="Paleta">
+          {colors.map((item) => (
             <button
               key={item}
-              className={item === color ? "selected" : ""}
+              className={item === color ? "active" : ""}
               style={{ backgroundColor: item }}
-              title={`Color ${item}`}
               onClick={() => setColor(item)}
+              title={item}
             />
           ))}
         </div>
-        <button className="ghostBtn" onClick={clear}>
-          limpiar
-        </button>
+        <button className="toolButton" onClick={() => onChange([...emptyArt])}>limpiar</button>
+        <button className="toolButton" onClick={mirror}>espejo</button>
       </div>
-    </section>
+    </div>
   );
 }
 
-function AttackBuilder({
-  attack,
-  onChange,
+function CardView({
+  card,
+  active,
+  onClick,
 }: {
-  attack: AttackDraft;
-  onChange: (attack: AttackDraft) => void;
+  card: GameCard;
+  active?: boolean;
+  onClick: () => void;
 }) {
-  const rules = useMemo(() => makeRules(attack), [attack]);
-
+  const label = card.kind === "attack" ? card.tier : `${card.tier} defensa`;
   return (
-    <section className="studioPanel attackPanel">
-      <div className="panelTitle compact">
-        <input
-          aria-label="Nombre del ataque"
-          value={attack.name}
-          onChange={(event) => onChange({ ...attack, name: event.target.value })}
-        />
-      </div>
-
-      <textarea
-        aria-label="Descripcion inventada del ataque"
-        value={attack.fantasy}
-        onChange={(event) => onChange({ ...attack, fantasy: event.target.value })}
-      />
-
-      <div className="formGrid">
-        <label>
-          forma
-          <select
-            value={attack.shape}
-            onChange={(event) => onChange({ ...attack, shape: event.target.value as AttackShape })}
-          >
-            {Object.entries(shapeLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          efecto
-          <select
-            value={attack.effect}
-            onChange={(event) =>
-              onChange({ ...attack, effect: event.target.value as AttackEffect })
-            }
-          >
-            {Object.entries(effectLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <label className="slider">
-        poder {attack.power}
-        <input
-          type="range"
-          min="1"
-          max="10"
-          value={attack.power}
-          onChange={(event) => onChange({ ...attack, power: Number(event.target.value) })}
-        />
-      </label>
-
-      <div className="rulesCard">
-        <strong>{rules.warning}</strong>
-        <span>{rules.damage} dano</span>
-        <span>{rules.cooldown}s recarga</span>
-        <span>{rules.energyCost} energia</span>
-      </div>
-    </section>
+    <button className={`card ${card.owner} ${active ? "active" : ""}`} onClick={onClick}>
+      <PixelSprite art={card.art} />
+      <span className="cardName">{card.name}</span>
+      <span className="cardMeta">{label}</span>
+      {card.kind === "attack" ? (
+        <span className="cardCost">{attackStats(card).cost}</span>
+      ) : (
+        <span className={card.used ? "cardUsed" : "cardCost"}>{card.used ? "usada" : "def"}</span>
+      )}
+    </button>
   );
 }
 
-function BattleCanvas({
-  fighters,
+function CardEditor({
+  selected,
   attacks,
+  defenses,
+  onAttackChange,
+  onDefenseChange,
 }: {
-  fighters: Record<FighterId, Fighter>;
-  attacks: Record<FighterId, AttackDraft>;
+  selected: GameCard;
+  attacks: Record<PlayerId, AttackCard[]>;
+  defenses: Record<PlayerId, DefenseCard[]>;
+  onAttackChange: (card: AttackCard) => void;
+  onDefenseChange: (card: DefenseCard) => void;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const keys = useRef<Record<string, boolean>>({});
-  const images = useRef<Partial<Record<FighterId, HTMLImageElement>>>({});
-  const players = useRef<Record<FighterId, PlayerState>>({
-    p1: { x: 180, y: 320, vx: 0, hp: 100, energy: 100, facing: 1, cooldown: 0, windup: 0, shield: 0, lastHit: 0 },
-    p2: { x: 700, y: 320, vx: 0, hp: 100, energy: 100, facing: -1, cooldown: 0, windup: 0, shield: 0, lastHit: 0 },
-  });
-  const projectiles = useRef<Projectile[]>([]);
-  const [, forceUi] = useState(0);
+  const ownerCards = selected.kind === "attack" ? attacks[selected.owner] : defenses[selected.owner];
 
-  useEffect(() => {
-    (["p1", "p2"] as FighterId[]).forEach((id) => {
-      if (!fighters[id].image) return;
-      const img = new Image();
-      img.src = fighters[id].image;
-      images.current[id] = img;
-    });
-  }, [fighters]);
-
-  useEffect(() => {
-    const down = (event: KeyboardEvent) => {
-      keys.current[event.key.toLowerCase()] = true;
-      if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(event.key.toLowerCase())) {
-        event.preventDefault();
-      }
-    };
-    const up = (event: KeyboardEvent) => {
-      keys.current[event.key.toLowerCase()] = false;
-    };
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, []);
-
-  function reset() {
-    players.current = {
-      p1: { x: 180, y: 320, vx: 0, hp: 100, energy: 100, facing: 1, cooldown: 0, windup: 0, shield: 0, lastHit: 0 },
-      p2: { x: 700, y: 320, vx: 0, hp: 100, energy: 100, facing: -1, cooldown: 0, windup: 0, shield: 0, lastHit: 0 },
-    };
-    projectiles.current = [];
-    forceUi((tick) => tick + 1);
+  function updateName(name: string) {
+    if (selected.kind === "attack") onAttackChange({ ...selected, name });
+    else onDefenseChange({ ...selected, name });
   }
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    let raf = 0;
-    let last = performance.now();
-
-    const socketWorld = (id: FighterId) => {
-      const player = players.current[id];
-      const fighter = fighters[id];
-      const scale = 0.54;
-      const localX = (fighter.hand.x - 120) * scale * player.facing;
-      const localY = (fighter.hand.y - 110) * scale;
-      const reach = player.windup > 0 ? 24 * player.facing : 0;
-      return { x: player.x + localX + reach, y: player.y + localY };
-    };
-
-    const fire = (owner: FighterId) => {
-      const player = players.current[owner];
-      const rules = makeRules(attacks[owner]);
-      if (player.cooldown > 0 || player.energy < rules.energyCost || player.hp <= 0) return;
-      const origin = socketWorld(owner);
-      player.cooldown = rules.cooldown;
-      player.energy -= rules.energyCost;
-      player.windup = 0.24;
-      projectiles.current.push({
-        owner,
-        x: origin.x,
-        y: origin.y,
-        vx: player.facing * rules.speed,
-        life: attacks[owner].shape === "beam" ? 42 : attacks[owner].shape === "trap" ? 120 : 95,
-        size: rules.size,
-        damage: rules.damage,
-        effect: attacks[owner].effect,
-        trail: owner === "p1" ? "#38bdf8" : "#fb7185",
-      });
-    };
-
-    const loop = (now: number) => {
-      const dt = Math.min(0.034, (now - last) / 1000);
-      last = now;
-      step(dt);
-      draw(ctx, canvas);
-      raf = requestAnimationFrame(loop);
-    };
-
-    const step = (dt: number) => {
-      const state = players.current;
-      movePlayer("p1", keys.current.a, keys.current.d, dt);
-      movePlayer("p2", keys.current.arrowleft, keys.current.arrowright, dt);
-
-      if (keys.current.f) fire("p1");
-      if (keys.current.l) fire("p2");
-      if (keys.current.g) state.p1.shield = 0.2;
-      if (keys.current.k) state.p2.shield = 0.2;
-
-      (["p1", "p2"] as FighterId[]).forEach((id) => {
-        const player = state[id];
-        player.cooldown = Math.max(0, player.cooldown - dt);
-        player.windup = Math.max(0, player.windup - dt);
-        player.shield = Math.max(0, player.shield - dt);
-        player.energy = Math.min(100, player.energy + dt * 11);
-        player.lastHit = Math.max(0, player.lastHit - dt);
-      });
-
-      projectiles.current = projectiles.current
-        .map((shot) => ({ ...shot, x: shot.x + shot.vx, life: shot.life - 1 }))
-        .filter((shot) => shot.life > 0 && shot.x > -80 && shot.x < canvas.width + 80);
-
-      for (const shot of projectiles.current) {
-        const targetId: FighterId = shot.owner === "p1" ? "p2" : "p1";
-        const target = state[targetId];
-        if (target.hp <= 0) continue;
-        const hit = Math.abs(shot.x - target.x) < 44 + shot.size && Math.abs(shot.y - target.y) < 58 + shot.size;
-        if (!hit) continue;
-        const blocked = target.shield > 0 && shot.effect !== "pierce";
-        if (!blocked) {
-          target.hp = clamp(target.hp - shot.damage, 0, 100);
-          target.lastHit = 0.22;
-          if (shot.effect === "push") target.x += shot.vx > 0 ? 28 : -28;
-          if (shot.effect === "slow") target.vx *= 0.35;
-          if (shot.effect === "burn") target.hp = clamp(target.hp - 4, 0, 100);
-        }
-        shot.life = 0;
-      }
-    };
-
-    const movePlayer = (id: FighterId, left?: boolean, right?: boolean, dt?: number) => {
-      const player = players.current[id];
-      if (player.hp <= 0) return;
-      const accel = 680 * (dt ?? 0);
-      if (left) {
-        player.vx -= accel;
-        player.facing = -1;
-      }
-      if (right) {
-        player.vx += accel;
-        player.facing = 1;
-      }
-      player.vx *= 0.84;
-      player.x = clamp(player.x + player.vx * (dt ?? 0), 70, canvas.width - 70);
-      player.y = 320 + Math.sin(nowish() / 180 + player.x * 0.02) * 2;
-    };
-
-    const drawFighter = (id: FighterId) => {
-      const player = players.current[id];
-      const img = images.current[id];
-      const wobble = player.windup > 0 ? Math.sin(performance.now() / 38) * 0.04 : 0;
-      const hurt = player.lastHit > 0 ? 1 : 0;
-      ctx.save();
-      ctx.translate(player.x, player.y);
-      ctx.scale(player.facing * (0.82 + wobble), 0.82 - wobble);
-      ctx.rotate(player.windup > 0 ? player.facing * -0.08 : 0);
-      ctx.globalAlpha = player.hp <= 0 ? 0.42 : 1;
-      if (img?.complete && img.naturalWidth) {
-        ctx.drawImage(img, -98, -100, 196, 180);
-      } else {
-        ctx.fillStyle = id === "p1" ? "#2563eb" : "#e11d48";
-        ctx.beginPath();
-        ctx.arc(0, -34, 36, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillRect(-26, -12, 52, 76);
-      }
-      if (hurt) {
-        ctx.fillStyle = "rgba(255,255,255,.45)";
-        ctx.fillRect(-98, -100, 196, 180);
-      }
-      ctx.restore();
-
-      const hand = socketWorld(id);
-      const shoulderX = player.x - player.facing * 8;
-      const shoulderY = player.y - 28;
-      ctx.lineWidth = player.windup > 0 ? 13 : 7;
-      ctx.lineCap = "round";
-      ctx.strokeStyle = id === "p1" ? "#67e8f9" : "#fda4af";
-      ctx.beginPath();
-      ctx.moveTo(shoulderX, shoulderY);
-      ctx.lineTo(hand.x, hand.y);
-      ctx.stroke();
-      ctx.fillStyle = "#ffffff";
-      ctx.strokeStyle = id === "p1" ? "#0891b2" : "#be123c";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(hand.x, hand.y, player.windup > 0 ? 12 : 8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      if (player.shield > 0) {
-        ctx.strokeStyle = "rgba(125, 211, 252, .85)";
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        ctx.arc(player.x, player.y - 24, 76, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-    };
-
-    const draw = (context: CanvasRenderingContext2D, area: HTMLCanvasElement) => {
-      context.clearRect(0, 0, area.width, area.height);
-      const ground = context.createLinearGradient(0, 220, 0, area.height);
-      ground.addColorStop(0, "#f8fafc");
-      ground.addColorStop(1, "#d9f99d");
-      context.fillStyle = ground;
-      context.fillRect(0, 0, area.width, area.height);
-      context.fillStyle = "#fef3c7";
-      context.fillRect(0, 348, area.width, 86);
-      context.fillStyle = "rgba(15,23,42,.1)";
-      for (let x = 0; x < area.width; x += 34) {
-        context.fillRect(x, 384, 18, 4);
-      }
-
-      projectiles.current.forEach((shot) => {
-        context.strokeStyle = shot.trail;
-        context.lineWidth = shot.size * 0.55;
-        context.lineCap = "round";
-        context.globalAlpha = 0.45;
-        context.beginPath();
-        context.moveTo(shot.x - shot.vx * 3, shot.y);
-        context.lineTo(shot.x, shot.y);
-        context.stroke();
-        context.globalAlpha = 1;
-        context.fillStyle = shot.effect === "burn" ? "#f97316" : shot.effect === "slow" ? "#60a5fa" : shot.effect === "pierce" ? "#a855f7" : "#facc15";
-        context.beginPath();
-        context.arc(shot.x, shot.y, shot.size, 0, Math.PI * 2);
-        context.fill();
-      });
-
-      drawFighter("p1");
-      drawFighter("p2");
-
-      const p1 = players.current.p1;
-      const p2 = players.current.p2;
-      drawBar(28, 22, p1.hp, "#2563eb", fighters.p1.name);
-      drawBar(area.width - 268, 22, p2.hp, "#e11d48", fighters.p2.name);
-      drawEnergy(28, 54, p1.energy);
-      drawEnergy(area.width - 268, 54, p2.energy);
-
-      const winner = p1.hp <= 0 ? fighters.p2.name : p2.hp <= 0 ? fighters.p1.name : "";
-      if (winner) {
-        context.fillStyle = "rgba(17,24,39,.78)";
-        context.fillRect(0, 0, area.width, area.height);
-        context.fillStyle = "#ffffff";
-        context.textAlign = "center";
-        context.font = "700 34px Arial";
-        context.fillText(`${winner} gana`, area.width / 2, 210);
-        context.font = "500 16px Arial";
-        context.fillText("Pulsa reiniciar para otra ronda", area.width / 2, 242);
-      }
-    };
-
-    const drawBar = (x: number, y: number, value: number, color: string, label: string) => {
-      ctx.fillStyle = "rgba(15,23,42,.18)";
-      ctx.fillRect(x, y, 240, 18);
-      ctx.fillStyle = color;
-      ctx.fillRect(x, y, 240 * (value / 100), 18);
-      ctx.fillStyle = "#111827";
-      ctx.font = "700 13px Arial";
-      ctx.fillText(label, x, y - 6);
-    };
-
-    const drawEnergy = (x: number, y: number, value: number) => {
-      ctx.fillStyle = "rgba(15,23,42,.14)";
-      ctx.fillRect(x, y, 240, 8);
-      ctx.fillStyle = "#22c55e";
-      ctx.fillRect(x, y, 240 * (value / 100), 8);
-    };
-
-    const nowish = () => performance.now();
-    raf = requestAnimationFrame(loop);
-    const ui = window.setInterval(() => forceUi((tick) => tick + 1), 300);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.clearInterval(ui);
-    };
-  }, [attacks, fighters]);
-
-  const p1Rules = makeRules(attacks.p1);
-  const p2Rules = makeRules(attacks.p2);
+  function updateArt(next: PixelArt) {
+    if (selected.kind === "attack") onAttackChange({ ...selected, art: next });
+    else onDefenseChange({ ...selected, art: next });
+  }
 
   return (
-    <section className="battleShell">
-      <div className="battleTop">
-        <div>
-          <strong>{attacks.p1.name}</strong>
-          <span>{p1Rules.cooldown}s / {p1Rules.energyCost} energia</span>
-        </div>
-        <button onClick={reset}>reiniciar</button>
-        <div>
-          <strong>{attacks.p2.name}</strong>
-          <span>{p2Rules.cooldown}s / {p2Rules.energyCost} energia</span>
-        </div>
+    <section className="editorPanel">
+      <div className="sectionTitle">
+        <span>Editor pixel 16x16</span>
+        <strong>{selected.owner === "p1" ? "Jugador 1" : "Jugador 2"}</strong>
       </div>
-      <canvas ref={canvasRef} width={900} height={430} className="arena" />
-      <div className="controls">
-        <span>J1: A/D mover, F ataque, G escudo</span>
-        <span>J2: flechas mover, L ataque, K escudo</span>
+      <div className="editorGrid">
+        <PixelEditor art={selected.art} onChange={updateArt} />
+        <div className="editorControls">
+          <label>
+            nombre
+            <input value={selected.name} onChange={(event) => updateName(event.target.value)} />
+          </label>
+
+          {selected.kind === "attack" ? (
+            <>
+              <label>
+                mecanica
+                <select
+                  value={selected.behavior}
+                  onChange={(event) =>
+                    onAttackChange({ ...selected, behavior: event.target.value as AttackBehavior })
+                  }
+                >
+                  {Object.entries(attackLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="statBox">
+                <strong>{selected.tier.toUpperCase()}</strong>
+                <span>coste {attackStats(selected).cost}</span>
+                <span>dano {attackStats(selected).damage}</span>
+                <span>velocidad {attackStats(selected).speed.toFixed(1)}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <label>
+                defensa
+                <select
+                  value={selected.behavior}
+                  onChange={(event) =>
+                    onDefenseChange({ ...selected, behavior: event.target.value as DefenseBehavior })
+                  }
+                >
+                  {Object.entries(defenseLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="statBox">
+                <strong>{selected.tier.toUpperCase()}</strong>
+                <span>vida {defenseStats(selected).hp}</span>
+                <span>dura {defenseStats(selected).ttl}s</span>
+              </div>
+            </>
+          )}
+
+          <div className="miniDeck">
+            {ownerCards.map((card) => (
+              <span key={card.id} className={card.id === selected.id ? "selectedDot" : ""}>
+                {card.name}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
-function NoAnalyzer({ attacks }: { attacks: Record<FighterId, AttackDraft> }) {
-  const combined = [...makeRules(attacks.p1).corrections, ...makeRules(attacks.p2).corrections];
-  const unique = Array.from(new Set(combined));
-
+function CharacterPick({
+  player,
+  state,
+  onPick,
+}: {
+  player: PlayerId;
+  state: PlayerState;
+  onPick: (id: CharacterId) => void;
+}) {
   return (
-    <section className="noPanel">
-      <div>
-        <p>Analizador de NOs</p>
-        <h2>La idea sigue siendo Paint, pero el juego hace de arbitro.</h2>
-      </div>
-      <div className="noList">
-        {unique.map((item) => (
-          <span key={item}>{item}</span>
-        ))}
-      </div>
-    </section>
+    <div className={`characterPick ${player}`}>
+      {Object.entries(characters).map(([id, item]) => (
+        <button
+          key={id}
+          className={state.character === id ? "active" : ""}
+          onClick={() => onPick(id as CharacterId)}
+        >
+          <strong>{item.name}</strong>
+          <span>{item.text}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
 export default function Home() {
-  const [phase, setPhase] = useState<Phase>("studio");
-  const [fighters, setFighters] = useState<Record<FighterId, Fighter>>(defaultFighters);
-  const [attacks, setAttacks] = useState<Record<FighterId, AttackDraft>>(defaultAttacks);
+  const [tab, setTab] = useState<Tab>("arena");
+  const [attacks, setAttacks] = useState<Record<PlayerId, AttackCard[]>>(initialAttacks);
+  const [defenses, setDefenses] = useState<Record<PlayerId, DefenseCard[]>>(initialDefenses);
+  const [selectedId, setSelectedId] = useState("p1-a1");
+  const [selectedToPlay, setSelectedToPlay] = useState<GameCard>(initialAttacks.p1[0]);
+  const [players, setPlayers] = useState<Record<PlayerId, PlayerState>>({
+    p1: { baseHp: 100, energy: 6, character: "planner", shieldReady: true },
+    p2: { baseHp: 115, energy: 6, character: "tank", shieldReady: true },
+  });
+  const [projectiles, setProjectiles] = useState<Projectile[]>([]);
+  const [placedDefenses, setPlacedDefenses] = useState<Defense[]>([]);
+  const [blasts, setBlasts] = useState<Blast[]>([]);
+  const [round, setRound] = useState(1);
+  const [running, setRunning] = useState(true);
+  const [nextId, setNextId] = useState(1);
+
+  const allCards = useMemo(
+    () => [...attacks.p1, ...attacks.p2, ...defenses.p1, ...defenses.p2],
+    [attacks, defenses],
+  );
+  const selectedForEdit = allCards.find((card) => card.id === selectedId) ?? attacks.p1[0];
+  const winner = players.p1.baseHp <= 0 ? "Jugador 2" : players.p2.baseHp <= 0 ? "Jugador 1" : "";
+
+  function updateAttack(card: AttackCard) {
+    setAttacks((current) => ({
+      ...current,
+      [card.owner]: current[card.owner].map((item) => (item.id === card.id ? card : item)),
+    }));
+    if (selectedToPlay.id === card.id) setSelectedToPlay(card);
+  }
+
+  function updateDefense(card: DefenseCard) {
+    setDefenses((current) => ({
+      ...current,
+      [card.owner]: current[card.owner].map((item) => (item.id === card.id ? card : item)),
+    }));
+    if (selectedToPlay.id === card.id) setSelectedToPlay(card);
+  }
+
+  function spendEnergy(owner: PlayerId, cost: number) {
+    let ok = false;
+    setPlayers((current) => {
+      if (current[owner].energy < cost) return current;
+      ok = true;
+      return {
+        ...current,
+        [owner]: { ...current[owner], energy: current[owner].energy - cost },
+      };
+    });
+    return ok;
+  }
+
+  function playLane(lane: number) {
+    if (winner) return;
+    if (selectedToPlay.kind === "attack") {
+      const stats = attackStats(selectedToPlay);
+      if (!spendEnergy(selectedToPlay.owner, stats.cost)) return;
+      const copies = selectedToPlay.behavior === "doble" ? [-2.2, 2.2] : [0];
+      const created = copies.map((offset) => ({
+        id: nextId + offset + Math.random(),
+        owner: selectedToPlay.owner,
+        lane,
+        x: selectedToPlay.owner === "p1" ? 7 + offset : 93 - offset,
+        hp: stats.hp,
+        damage: stats.damage,
+        speed: stats.speed,
+        size: stats.size,
+        tier: selectedToPlay.tier,
+        behavior: selectedToPlay.behavior,
+        name: selectedToPlay.name,
+        art: selectedToPlay.art,
+        charge: stats.charge,
+      }));
+      setProjectiles((current) => [...current, ...created]);
+      setNextId((id) => id + 3);
+      return;
+    }
+
+    if (selectedToPlay.used) return;
+    const stats = defenseStats(selectedToPlay);
+    const duplicate = placedDefenses.some(
+      (item) => item.owner === selectedToPlay.owner && item.lane === lane,
+    );
+    if (duplicate) return;
+    setPlacedDefenses((current) => [
+      ...current,
+      {
+        id: nextId,
+        owner: selectedToPlay.owner,
+        lane,
+        hp: stats.hp,
+        ttl: stats.ttl,
+        tier: selectedToPlay.tier,
+        behavior: selectedToPlay.behavior,
+        name: selectedToPlay.name,
+        art: selectedToPlay.art,
+      },
+    ]);
+    setNextId((id) => id + 1);
+    updateDefense({ ...selectedToPlay, used: true });
+  }
+
+  function resetMatch() {
+    setPlayers({
+      p1: { baseHp: 100, energy: 6, character: "planner", shieldReady: true },
+      p2: { baseHp: 115, energy: 6, character: "tank", shieldReady: true },
+    });
+    setProjectiles([]);
+    setPlacedDefenses([]);
+    setBlasts([]);
+    setRound(1);
+    setRunning(true);
+    setDefenses(initialDefenses);
+  }
+
+  function nextRound() {
+    setRound((value) => value + 1);
+    setProjectiles([]);
+    setPlacedDefenses((current) => current.filter((item) => item.ttl > 8));
+    setPlayers((current) => ({
+      p1: { ...current.p1, energy: 7 },
+      p2: { ...current.p2, energy: 7 },
+    }));
+    setDefenses((current) => ({
+      p1: current.p1.map((card) => ({ ...card, used: false })),
+      p2: current.p2.map((card) => ({ ...card, used: false })),
+    }));
+  }
+
+  function pickCharacter(player: PlayerId, id: CharacterId) {
+    setPlayers((current) => {
+      const bonusHp = id === "tank" ? 115 : 100;
+      return {
+        ...current,
+        [player]: {
+          ...current[player],
+          character: id,
+          baseHp: Math.max(current[player].baseHp, bonusHp),
+        },
+      };
+    });
+  }
+
+  useEffect(() => {
+    if (!running || winner) return;
+    const timer = window.setInterval(() => {
+      setPlayers((current) => {
+        const p1Gain = current.p1.character === "charger" ? 0.45 : 0.32;
+        const p2Gain = current.p2.character === "charger" ? 0.45 : 0.32;
+        return {
+          p1: { ...current.p1, energy: clamp(current.p1.energy + p1Gain, 0, 10) },
+          p2: { ...current.p2, energy: clamp(current.p2.energy + p2Gain, 0, 10) },
+        };
+      });
+
+      setBlasts((current) => current.map((item) => ({ ...item, ttl: item.ttl - 1 })).filter((item) => item.ttl > 0));
+      setPlacedDefenses((current) =>
+        current.map((item) => ({ ...item, ttl: item.ttl - 0.25 })).filter((item) => item.ttl > 0 && item.hp > 0),
+      );
+
+      setProjectiles((current) => {
+        const next = current
+          .map((shot) => {
+            if (shot.charge > 0) return { ...shot, charge: shot.charge - 0.25 };
+            return {
+              ...shot,
+              x: shot.owner === "p1" ? shot.x + shot.speed : shot.x - shot.speed,
+            };
+          })
+          .filter((shot) => shot.hp > 0);
+
+        const changed = [...next];
+        const newBlasts: Blast[] = [];
+        const defenseDamage = new Map<number, number>();
+        const reflected: Projectile[] = [];
+        const baseDamage: Partial<Record<PlayerId, number>> = { p1: 0, p2: 0 };
+
+        for (let i = 0; i < changed.length; i += 1) {
+          const shot = changed[i];
+          if (!shot) continue;
+          const targetOwner: PlayerId = shot.owner === "p1" ? "p2" : "p1";
+          const defenseX = targetOwner === "p1" ? 14 : 82;
+          const defense = placedDefenses.find(
+            (item) => item.owner === targetOwner && item.lane === shot.lane && Math.abs(defenseX - shot.x) < 8,
+          );
+          if (defense) {
+            const pierce = shot.behavior === "rompedefensa";
+            const dealt = pierce ? shot.damage * 1.7 : shot.damage;
+            defenseDamage.set(defense.id, (defenseDamage.get(defense.id) ?? 0) + dealt);
+            changed[i] = { ...shot, hp: pierce ? shot.hp - 8 : 0 };
+            newBlasts.push({
+              id: nextId + i,
+              lane: shot.lane,
+              x: shot.x,
+              ttl: 6,
+              color: primaryColor(shot.art, "#facc15"),
+            });
+            if (defense.behavior === "reflector" && shot.tier !== "hyper") {
+              reflected.push({
+                ...shot,
+                id: nextId + 50 + i,
+                owner: targetOwner,
+                hp: Math.max(3, shot.hp / 2),
+                damage: Math.max(4, shot.damage / 2),
+                x: targetOwner === "p1" ? 16 : 84,
+                charge: 0,
+              });
+            }
+            if (defense.behavior === "absorbe") {
+              setPlayers((playersNow) => ({
+                ...playersNow,
+                [targetOwner]: {
+                  ...playersNow[targetOwner],
+                  energy: clamp(playersNow[targetOwner].energy + 0.5, 0, 10),
+                },
+              }));
+            }
+          }
+        }
+
+        for (let i = 0; i < changed.length; i += 1) {
+          for (let j = i + 1; j < changed.length; j += 1) {
+            const a = changed[i];
+            const b = changed[j];
+            if (!a || !b || a.owner === b.owner || a.lane !== b.lane || Math.abs(a.x - b.x) > 5) continue;
+            changed[i] = { ...a, hp: a.hp - b.damage };
+            changed[j] = { ...b, hp: b.hp - a.damage };
+            newBlasts.push({
+              id: nextId + 100 + i + j,
+              lane: a.lane,
+              x: (a.x + b.x) / 2,
+              ttl: 5,
+              color: "#ffffff",
+            });
+          }
+        }
+
+        const survived = [...changed, ...reflected].filter((shot) => {
+          if (shot.owner === "p1" && shot.x >= 97) {
+            baseDamage.p2 = (baseDamage.p2 ?? 0) + shot.damage;
+            return false;
+          }
+          if (shot.owner === "p2" && shot.x <= 3) {
+            baseDamage.p1 = (baseDamage.p1 ?? 0) + shot.damage;
+            return false;
+          }
+          return shot.x > -8 && shot.x < 108 && shot.hp > 0;
+        });
+
+        if ((baseDamage.p1 ?? 0) > 0 || (baseDamage.p2 ?? 0) > 0) {
+          setPlayers((playersNow) => {
+            const blockP1 = playersNow.p1.character === "shield" && playersNow.p1.shieldReady && (baseDamage.p1 ?? 0) >= 25;
+            const blockP2 = playersNow.p2.character === "shield" && playersNow.p2.shieldReady && (baseDamage.p2 ?? 0) >= 25;
+            return {
+              p1: {
+                ...playersNow.p1,
+                baseHp: clamp(playersNow.p1.baseHp - (blockP1 ? 0 : baseDamage.p1 ?? 0), 0, 130),
+                shieldReady: blockP1 ? false : playersNow.p1.shieldReady,
+              },
+              p2: {
+                ...playersNow.p2,
+                baseHp: clamp(playersNow.p2.baseHp - (blockP2 ? 0 : baseDamage.p2 ?? 0), 0, 130),
+                shieldReady: blockP2 ? false : playersNow.p2.shieldReady,
+              },
+            };
+          });
+        }
+
+        if (defenseDamage.size > 0) {
+          setPlacedDefenses((defs) =>
+            defs.map((item) => ({ ...item, hp: item.hp - (defenseDamage.get(item.id) ?? 0) })),
+          );
+        }
+        if (newBlasts.length > 0) setBlasts((currentBlasts) => [...currentBlasts, ...newBlasts]);
+        return survived;
+      });
+    }, 250);
+
+    return () => window.clearInterval(timer);
+  }, [running, winner, placedDefenses, nextId]);
 
   return (
-    <main className="appShell">
-      <header className="topBar">
+    <main className="app">
+      <header className="hud">
         <div>
-          <p>Paint Fighter Prototype</p>
-          <h1>Dibuja, marca la mano y pelea con ataques inventados.</h1>
+          <span className="eyebrow">Prueba de idea</span>
+          <h1>Card Lane Duel</h1>
         </div>
-        <div className="phaseTabs">
-          <button className={phase === "studio" ? "active" : ""} onClick={() => setPhase("studio")}>
-            crear
-          </button>
-          <button className={phase === "battle" ? "active" : ""} onClick={() => setPhase("battle")}>
-            pelear
-          </button>
-        </div>
+        <nav className="tabs" aria-label="Pantallas">
+          {(["arena", "cartas", "reglas"] as Tab[]).map((item) => (
+            <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>
+              {item}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      {phase === "studio" ? (
-        <div className="studioGrid">
-          <div className="playerColumn">
-            <DrawingPad fighter={fighters.p1} onChange={(fighter) => setFighters({ ...fighters, p1: fighter })} />
-            <AttackBuilder attack={attacks.p1} onChange={(attack) => setAttacks({ ...attacks, p1: attack })} />
+      {tab === "arena" && (
+        <section className="battleLayout">
+          <aside className="sidePanel left">
+            <PlayerStatus player="p1" state={players.p1} />
+            <CharacterPick player="p1" state={players.p1} onPick={(id) => pickCharacter("p1", id)} />
+            <Deck
+              attacks={attacks.p1}
+              defenses={defenses.p1}
+              selected={selectedToPlay}
+              onSelect={(card) => setSelectedToPlay(card)}
+              onEdit={(card) => {
+                setSelectedId(card.id);
+                setTab("cartas");
+              }}
+            />
+          </aside>
+
+          <section className="arenaPanel">
+            <div className="roundBar">
+              <button onClick={() => setRunning((value) => !value)}>{running ? "pausar" : "seguir"}</button>
+              <strong>Ronda {round}</strong>
+              <button onClick={nextRound}>siguiente ronda</button>
+            </div>
+
+            <div className="arenaBoard">
+              <div className="base p1">
+                <span>{Math.round(players.p1.baseHp)}</span>
+              </div>
+              <div className="base p2">
+                <span>{Math.round(players.p2.baseHp)}</span>
+              </div>
+
+              {lanes.map((lane) => (
+                <button key={lane} className="lane" onClick={() => playLane(lane)}>
+                  <span className="laneNumber">{lane + 1}</span>
+                  {placedDefenses
+                    .filter((item) => item.lane === lane)
+                    .map((item) => (
+                      <span
+                        key={item.id}
+                        className={`defenseToken ${item.owner}`}
+                        style={{ left: `${item.owner === "p1" ? 14 : 82}%` }}
+                        title={`${item.name} ${Math.round(item.hp)} vida`}
+                      >
+                        <PixelSprite art={item.art} small />
+                        <b>{Math.round(item.hp)}</b>
+                      </span>
+                    ))}
+                  {projectiles
+                    .filter((item) => item.lane === lane)
+                    .map((item) => (
+                      <span
+                        key={item.id}
+                        className={`shot ${item.owner} ${item.tier} ${item.charge > 0 ? "charging" : ""}`}
+                        style={{ left: `${item.x}%`, width: item.size, height: item.size }}
+                        title={item.name}
+                      >
+                        <PixelSprite art={item.art} small />
+                      </span>
+                    ))}
+                  {blasts
+                    .filter((item) => item.lane === lane)
+                    .map((item) => (
+                      <span
+                        key={item.id}
+                        className="blast"
+                        style={{ left: `${item.x}%`, backgroundColor: item.color }}
+                      />
+                    ))}
+                </button>
+              ))}
+              {winner && <div className="winner">{winner} gana</div>}
+            </div>
+
+            <div className="selectedPlay">
+              <PixelSprite art={selectedToPlay.art} small />
+              <span>
+                seleccionada: <strong>{selectedToPlay.name}</strong>
+              </span>
+              <small>
+                {selectedToPlay.kind === "attack"
+                  ? `${selectedToPlay.tier} / ${attackLabels[selectedToPlay.behavior]}`
+                  : `${selectedToPlay.tier} / ${defenseLabels[selectedToPlay.behavior]}`}
+              </small>
+            </div>
+          </section>
+
+          <aside className="sidePanel right">
+            <PlayerStatus player="p2" state={players.p2} />
+            <CharacterPick player="p2" state={players.p2} onPick={(id) => pickCharacter("p2", id)} />
+            <Deck
+              attacks={attacks.p2}
+              defenses={defenses.p2}
+              selected={selectedToPlay}
+              onSelect={(card) => setSelectedToPlay(card)}
+              onEdit={(card) => {
+                setSelectedId(card.id);
+                setTab("cartas");
+              }}
+            />
+          </aside>
+        </section>
+      )}
+
+      {tab === "cartas" && (
+        <section className="cardsScreen">
+          <div className="cardsColumn">
+            <h2>Jugador 1</h2>
+            <Deck
+              attacks={attacks.p1}
+              defenses={defenses.p1}
+              selected={selectedForEdit}
+              onSelect={(card) => setSelectedId(card.id)}
+              onEdit={(card) => setSelectedId(card.id)}
+            />
           </div>
-          <NoAnalyzer attacks={attacks} />
-          <div className="playerColumn">
-            <DrawingPad fighter={fighters.p2} onChange={(fighter) => setFighters({ ...fighters, p2: fighter })} />
-            <AttackBuilder attack={attacks.p2} onChange={(attack) => setAttacks({ ...attacks, p2: attack })} />
+          <CardEditor
+            selected={selectedForEdit}
+            attacks={attacks}
+            defenses={defenses}
+            onAttackChange={updateAttack}
+            onDefenseChange={updateDefense}
+          />
+          <div className="cardsColumn">
+            <h2>Jugador 2</h2>
+            <Deck
+              attacks={attacks.p2}
+              defenses={defenses.p2}
+              selected={selectedForEdit}
+              onSelect={(card) => setSelectedId(card.id)}
+              onEdit={(card) => setSelectedId(card.id)}
+            />
           </div>
-        </div>
-      ) : (
-        <BattleCanvas fighters={fighters} attacks={attacks} />
+        </section>
+      )}
+
+      {tab === "reglas" && (
+        <section className="rulesScreen">
+          <div className="ruleCard">
+            <span>1</span>
+            <h2>Siempre 1 vs 1</h2>
+            <p>Dos bases, cinco carriles, sin caminar por el mapa y sin muros creados por cartas.</p>
+          </div>
+          <div className="ruleCard">
+            <span>2</span>
+            <h2>Cartas por ronda</h2>
+            <p>Cada jugador usa 2 ataques normales, 1 super y 1 hiper. La siguiente ronda puede cambiar la idea.</p>
+          </div>
+          <div className="ruleCard">
+            <span>3</span>
+            <h2>Defensas especiales</h2>
+            <p>Hay 2 defensas por jugador: una normal y una hiper. Se colocan en carriles y con el tiempo desaparecen.</p>
+          </div>
+          <div className="ruleCard">
+            <span>4</span>
+            <h2>Dibujo libre, reglas claras</h2>
+            <p>Dibujas el sprite en pixel art. El juego solo necesita saber su comportamiento para animarlo y balancearlo.</p>
+          </div>
+          <button className="resetButton" onClick={resetMatch}>reiniciar partida</button>
+        </section>
       )}
     </main>
+  );
+}
+
+function PlayerStatus({ player, state }: { player: PlayerId; state: PlayerState }) {
+  return (
+    <div className={`playerStatus ${player}`}>
+      <span>{player === "p1" ? "Jugador 1" : "Jugador 2"}</span>
+      <strong>{characters[state.character].name}</strong>
+      <div className="bars">
+        <label>
+          base
+          <i><b style={{ width: `${clamp(state.baseHp, 0, 115) / 1.15}%` }} /></i>
+        </label>
+        <label>
+          energia
+          <i><b style={{ width: `${state.energy * 10}%` }} /></i>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function Deck({
+  attacks,
+  defenses,
+  selected,
+  onSelect,
+  onEdit,
+}: {
+  attacks: AttackCard[];
+  defenses: DefenseCard[];
+  selected: GameCard;
+  onSelect: (card: GameCard) => void;
+  onEdit: (card: GameCard) => void;
+}) {
+  return (
+    <div className="deck">
+      <div className="deckGroup">
+        <span className="deckLabel">ataques</span>
+        {attacks.map((card) => (
+          <div key={card.id} className="cardWrap">
+            <CardView card={card} active={selected.id === card.id} onClick={() => onSelect(card)} />
+            <button className="editMini" onClick={() => onEdit(card)}>editar</button>
+          </div>
+        ))}
+      </div>
+      <div className="deckGroup">
+        <span className="deckLabel">defensas</span>
+        {defenses.map((card) => (
+          <div key={card.id} className="cardWrap">
+            <CardView card={card} active={selected.id === card.id} onClick={() => onSelect(card)} />
+            <button className="editMini" onClick={() => onEdit(card)}>editar</button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
