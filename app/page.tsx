@@ -8,7 +8,7 @@ type AttackTier = "normal" | "super" | "hyper";
 type DefenseTier = "normal" | "hyper";
 type AttackBehavior = "rapido" | "pesado" | "doble" | "cargado" | "rompedefensa";
 type DefenseBehavior = "bloqueo" | "reflector" | "absorbe";
-type CharacterId = "planner" | "tank" | "shield" | "charger";
+type CharacterId = "planner" | "tank" | "shield" | "striker";
 type PaintTool = "pencil" | "eraser" | "fill" | "picker";
 
 type Pixel = string | null;
@@ -77,7 +77,6 @@ type Blast = {
 
 type PlayerState = {
   baseHp: number;
-  energy: number;
   character: CharacterId;
   shieldReady: boolean;
 };
@@ -111,13 +110,13 @@ const attackLabels: Record<AttackBehavior, string> = {
 const defenseLabels: Record<DefenseBehavior, string> = {
   bloqueo: "bloqueo",
   reflector: "reflector",
-  absorbe: "absorbe energia",
+  absorbe: "absorbe dano",
 };
 
 const characters: Record<CharacterId, { name: string; text: string }> = {
   planner: {
     name: "Estratega",
-    text: "puede llevar 5 cartas de ataque cuando lo activemos",
+    text: "tiene el mazo mas flexible para futuras versiones",
   },
   tank: {
     name: "Tanque",
@@ -127,9 +126,9 @@ const characters: Record<CharacterId, { name: string; text: string }> = {
     name: "Guardian",
     text: "tiene un escudo de emergencia una vez por partida",
   },
-  charger: {
-    name: "Cargador",
-    text: "genera energia un poco mas rapido",
+  striker: {
+    name: "Impulsor",
+    text: "sus ataques viajan un poco mas rapido",
   },
 };
 
@@ -270,27 +269,27 @@ const art = {
 
 const initialAttacks: Record<PlayerId, AttackCard[]> = {
   p1: [
-    { id: "p1-a1", owner: "p1", kind: "attack", tier: "normal", name: "Chispa", behavior: "rapido", art: art.bolt },
-    { id: "p1-a2", owner: "p1", kind: "attack", tier: "normal", name: "Astilla", behavior: "doble", art: art.shard },
-    { id: "p1-a3", owner: "p1", kind: "attack", tier: "super", name: "Cometa", behavior: "pesado", art: art.comet },
-    { id: "p1-a4", owner: "p1", kind: "attack", tier: "hyper", name: "Taladro Hiper", behavior: "rompedefensa", art: art.drill },
+    { id: "p1-a1", owner: "p1", kind: "attack", tier: "normal", name: "Normal 1", behavior: "rapido", art: [...emptyArt] },
+    { id: "p1-a2", owner: "p1", kind: "attack", tier: "normal", name: "Normal 2", behavior: "doble", art: [...emptyArt] },
+    { id: "p1-a3", owner: "p1", kind: "attack", tier: "super", name: "Super", behavior: "pesado", art: [...emptyArt] },
+    { id: "p1-a4", owner: "p1", kind: "attack", tier: "hyper", name: "Hiper", behavior: "rompedefensa", art: [...emptyArt] },
   ],
   p2: [
-    { id: "p2-a1", owner: "p2", kind: "attack", tier: "normal", name: "Rayo Rosa", behavior: "rapido", art: tint(art.bolt, "#ec4899") },
-    { id: "p2-a2", owner: "p2", kind: "attack", tier: "normal", name: "Eco Doble", behavior: "doble", art: tint(art.shard, "#22c55e") },
-    { id: "p2-a3", owner: "p2", kind: "attack", tier: "super", name: "Bomba Pixel", behavior: "cargado", art: tint(art.comet, "#a855f7") },
-    { id: "p2-a4", owner: "p2", kind: "attack", tier: "hyper", name: "Perforador", behavior: "rompedefensa", art: art.drill },
+    { id: "p2-a1", owner: "p2", kind: "attack", tier: "normal", name: "Normal 1", behavior: "rapido", art: [...emptyArt] },
+    { id: "p2-a2", owner: "p2", kind: "attack", tier: "normal", name: "Normal 2", behavior: "doble", art: [...emptyArt] },
+    { id: "p2-a3", owner: "p2", kind: "attack", tier: "super", name: "Super", behavior: "pesado", art: [...emptyArt] },
+    { id: "p2-a4", owner: "p2", kind: "attack", tier: "hyper", name: "Hiper", behavior: "rompedefensa", art: [...emptyArt] },
   ],
 };
 
 const initialDefenses: Record<PlayerId, DefenseCard[]> = {
   p1: [
-    { id: "p1-d1", owner: "p1", kind: "defense", tier: "normal", name: "Barrera", behavior: "bloqueo", art: art.wall, used: false },
-    { id: "p1-d2", owner: "p1", kind: "defense", tier: "hyper", name: "Prisma", behavior: "reflector", art: art.prism, used: false },
+    { id: "p1-d1", owner: "p1", kind: "defense", tier: "normal", name: "Defensa", behavior: "bloqueo", art: [...emptyArt], used: false },
+    { id: "p1-d2", owner: "p1", kind: "defense", tier: "hyper", name: "Defensa Hiper", behavior: "reflector", art: [...emptyArt], used: false },
   ],
   p2: [
-    { id: "p2-d1", owner: "p2", kind: "defense", tier: "normal", name: "Muro Rosa", behavior: "bloqueo", art: tint(art.wall, "#ec4899"), used: false },
-    { id: "p2-d2", owner: "p2", kind: "defense", tier: "hyper", name: "Absorbe", behavior: "absorbe", art: tint(art.prism, "#22c55e"), used: false },
+    { id: "p2-d1", owner: "p2", kind: "defense", tier: "normal", name: "Defensa", behavior: "bloqueo", art: [...emptyArt], used: false },
+    { id: "p2-d2", owner: "p2", kind: "defense", tier: "hyper", name: "Defensa Hiper", behavior: "reflector", art: [...emptyArt], used: false },
   ],
 };
 
@@ -312,21 +311,20 @@ function otherPlayer(player: PlayerId): PlayerId {
 
 function attackStats(card: AttackCard) {
   const tier = {
-    normal: { cost: 2, damage: 11, hp: 10, speed: 8, size: 22, charge: 0 },
-    super: { cost: 5, damage: 25, hp: 24, speed: 4.8, size: 28, charge: 0 },
-    hyper: { cost: 8, damage: 42, hp: 38, speed: 3.7, size: 34, charge: 0 },
+    normal: { damage: 11, hp: 10, speed: 8, size: 22, charge: 0 },
+    super: { damage: 25, hp: 24, speed: 4.8, size: 28, charge: 0 },
+    hyper: { damage: 42, hp: 38, speed: 3.7, size: 34, charge: 0 },
   }[card.tier];
 
   const behavior = {
-    rapido: { cost: 0, damage: -2, hp: -2, speed: 2.7, charge: 0 },
-    pesado: { cost: 1, damage: 9, hp: 10, speed: -2, charge: 0 },
-    doble: { cost: 1, damage: -4, hp: -3, speed: 0.4, charge: 0 },
-    cargado: { cost: 0, damage: 12, hp: 3, speed: -1, charge: 1.2 },
-    rompedefensa: { cost: 1, damage: 4, hp: 8, speed: -1.2, charge: 0.3 },
+    rapido: { damage: -2, hp: -2, speed: 2.7, charge: 0 },
+    pesado: { damage: 9, hp: 10, speed: -2, charge: 0 },
+    doble: { damage: -4, hp: -3, speed: 0.4, charge: 0 },
+    cargado: { damage: 12, hp: 3, speed: -1, charge: 1.2 },
+    rompedefensa: { damage: 4, hp: 8, speed: -1.2, charge: 0.3 },
   }[card.behavior];
 
   return {
-    cost: tier.cost + behavior.cost,
     damage: Math.max(4, tier.damage + behavior.damage),
     hp: Math.max(3, tier.hp + behavior.hp),
     speed: Math.max(1.8, tier.speed + behavior.speed),
@@ -336,7 +334,7 @@ function attackStats(card: AttackCard) {
 }
 
 function defenseStats(card: DefenseCard) {
-  const tier = card.tier === "hyper" ? { hp: 76, ttl: 24, cost: 0 } : { hp: 38, ttl: 16, cost: 0 };
+  const tier = card.tier === "hyper" ? { hp: 76, ttl: 24 } : { hp: 38, ttl: 16 };
   const behavior = {
     bloqueo: { hp: 18, ttl: 0 },
     reflector: { hp: -6, ttl: -4 },
@@ -345,7 +343,6 @@ function defenseStats(card: DefenseCard) {
   return {
     hp: Math.max(14, tier.hp + behavior.hp),
     ttl: Math.max(8, tier.ttl + behavior.ttl),
-    cost: tier.cost,
   };
 }
 
@@ -520,19 +517,21 @@ function PixelEditor({
 function CardView({
   card,
   active,
+  spent,
   onClick,
 }: {
   card: GameCard;
   active?: boolean;
+  spent?: boolean;
   onClick: () => void;
 }) {
   const label = card.kind === "attack" ? card.tier : `${card.tier} defensa`;
-  const cost = card.kind === "attack" ? attackStats(card).cost : "D";
+  const badge = card.kind === "attack" ? card.tier.slice(0, 1).toUpperCase() : "D";
   const mechanic = card.kind === "attack" ? attackLabels[card.behavior] : defenseLabels[card.behavior];
   return (
-    <button className={`card ${card.owner} ${card.kind} ${card.kind === "attack" ? card.tier : card.tier} ${active ? "active" : ""}`} onClick={onClick}>
+    <button className={`card ${card.owner} ${card.kind} ${card.kind === "attack" ? card.tier : card.tier} ${active ? "active" : ""} ${spent ? "spent" : ""}`} onClick={onClick}>
       <span className="cardRibbon">{label}</span>
-      <span className={card.kind === "defense" && card.used ? "cardUsed" : "cardCost"}>{card.kind === "defense" && card.used ? "usada" : cost}</span>
+      <span className={spent ? "cardUsed" : "cardCost"}>{spent ? "usada" : badge}</span>
       <span className="cardArtFrame">
         <PixelSprite art={card.art} />
       </span>
@@ -636,7 +635,6 @@ function CardEditor({
               </label>
               <div className="statBox">
                 <strong>{selected.tier.toUpperCase()}</strong>
-                <span>coste {attackStats(selected).cost}</span>
                 <span>dano {attackStats(selected).damage}</span>
                 <span>velocidad {attackStats(selected).speed.toFixed(1)}</span>
                 <small>{attackLabels[selected.behavior]} anima el dibujo automaticamente por el carril.</small>
@@ -713,9 +711,10 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState("p1-a1");
   const [selectedToPlay, setSelectedToPlay] = useState<GameCard>(initialAttacks.p1[0]);
   const [players, setPlayers] = useState<Record<PlayerId, PlayerState>>({
-    p1: { baseHp: 100, energy: 6, character: "planner", shieldReady: true },
-    p2: { baseHp: 115, energy: 6, character: "tank", shieldReady: true },
+    p1: { baseHp: 100, character: "planner", shieldReady: true },
+    p2: { baseHp: 100, character: "planner", shieldReady: true },
   });
+  const [usedCards, setUsedCards] = useState<Record<PlayerId, string[]>>({ p1: [], p2: [] });
   const [projectiles, setProjectiles] = useState<Projectile[]>([]);
   const [placedDefenses, setPlacedDefenses] = useState<Defense[]>([]);
   const [blasts, setBlasts] = useState<Blast[]>([]);
@@ -744,8 +743,8 @@ export default function Home() {
   function enterPrivateScreen() {
     setScreen(coverNext);
     if (coverNext === "battle") {
-      const firstCard = attacks[phasePlayer][0];
-      setSelectedToPlay(firstCard);
+      const firstCard = selectFirstReady(phasePlayer);
+      if (firstCard) setSelectedToPlay(firstCard);
       addLog(`${playerName(phasePlayer)} tiene el turno.`);
     }
     if (coverNext === "build") {
@@ -757,9 +756,10 @@ export default function Home() {
     setAttacks(initialAttacks);
     setDefenses(initialDefenses);
     setPlayers({
-      p1: { baseHp: 100, energy: 6, character: "planner", shieldReady: true },
-      p2: { baseHp: 100, energy: 6, character: "planner", shieldReady: true },
+      p1: { baseHp: 100, character: "planner", shieldReady: true },
+      p2: { baseHp: 100, character: "planner", shieldReady: true },
     });
+    setUsedCards({ p1: [], p2: [] });
     setProjectiles([]);
     setPlacedDefenses([]);
     setBlasts([]);
@@ -789,26 +789,50 @@ export default function Home() {
     if (selectedToPlay.id === card.id) setSelectedToPlay(card);
   }
 
-  function spendEnergy(owner: PlayerId, cost: number) {
-    let ok = false;
-    setPlayers((current) => {
-      if (current[owner].energy < cost) return current;
-      ok = true;
-      return {
-        ...current,
-        [owner]: { ...current[owner], energy: current[owner].energy - cost },
-      };
-    });
-    return ok;
+  function allCardsUsed(player: PlayerId, used = usedCards) {
+    const ids = [...attacks[player], ...defenses[player]].map((card) => card.id);
+    return ids.every((id) => used[player].includes(id));
+  }
+
+  function selectFirstReady(player: PlayerId, used = usedCards) {
+    return [...attacks[player], ...defenses[player]].find((card) => !used[player].includes(card.id));
+  }
+
+  function finishCardUse(owner: PlayerId, cardId: string) {
+    const nextUsed = {
+      ...usedCards,
+      [owner]: Array.from(new Set([...usedCards[owner], cardId])),
+    };
+    setUsedCards(nextUsed);
+
+    const p1Done = allCardsUsed("p1", nextUsed);
+    const p2Done = allCardsUsed("p2", nextUsed);
+    if (p1Done && p2Done) {
+      window.setTimeout(() => nextRound(), 650);
+      return;
+    }
+
+    if (allCardsUsed(owner, nextUsed)) {
+      const next = otherPlayer(owner);
+      const nextCard = selectFirstReady(next, nextUsed);
+      if (nextCard) setSelectedToPlay(nextCard);
+      window.setTimeout(() => goPrivate(next, "battle"), 450);
+      addLog(`${playerName(owner)} gasto todas sus cartas. Turno de ${playerName(next)}.`);
+      return;
+    }
+
+    const ready = selectFirstReady(owner, nextUsed);
+    if (ready) setSelectedToPlay(ready);
   }
 
   function playLane(lane: number) {
     if (winner) return;
     if (selectedToPlay.owner !== phasePlayer || screen !== "battle") return;
+    if (usedCards[phasePlayer].includes(selectedToPlay.id)) return;
     if (selectedToPlay.kind === "attack") {
       const stats = attackStats(selectedToPlay);
-      if (!spendEnergy(selectedToPlay.owner, stats.cost)) return;
       const copies = selectedToPlay.behavior === "doble" ? [-2.2, 2.2] : [0];
+      const speedBoost = players[selectedToPlay.owner].character === "striker" ? 1.16 : 1;
       const created = copies.map((offset) => ({
         id: nextId + offset + Math.random(),
         owner: selectedToPlay.owner,
@@ -816,7 +840,7 @@ export default function Home() {
         x: selectedToPlay.owner === "p1" ? 7 + offset : 93 - offset,
         hp: stats.hp,
         damage: stats.damage,
-        speed: stats.speed,
+        speed: stats.speed * speedBoost,
         size: stats.size,
         tier: selectedToPlay.tier,
         behavior: selectedToPlay.behavior,
@@ -839,10 +863,10 @@ export default function Home() {
       ]);
       setNextId((id) => id + 3);
       addLog(`${playerName(selectedToPlay.owner)} lanzo ${selectedToPlay.name} en carril ${lane + 1}.`);
+      finishCardUse(selectedToPlay.owner, selectedToPlay.id);
       return;
     }
 
-    if (selectedToPlay.used) return;
     const stats = defenseStats(selectedToPlay);
     const duplicate = placedDefenses.some(
       (item) => item.owner === selectedToPlay.owner && item.lane === lane,
@@ -877,6 +901,7 @@ export default function Home() {
       },
     ]);
     addLog(`${playerName(selectedToPlay.owner)} puso ${selectedToPlay.name} en carril ${lane + 1}.`);
+    finishCardUse(selectedToPlay.owner, selectedToPlay.id);
   }
 
   function resetMatch() {
@@ -887,15 +912,15 @@ export default function Home() {
     setRound((value) => value + 1);
     setProjectiles([]);
     setPlacedDefenses((current) => current.filter((item) => item.ttl > 8));
-    setPlayers((current) => ({
-      p1: { ...current.p1, energy: 7 },
-      p2: { ...current.p2, energy: 7 },
-    }));
+    setUsedCards({ p1: [], p2: [] });
     setDefenses((current) => ({
       p1: current.p1.map((card) => ({ ...card, used: false })),
       p2: current.p2.map((card) => ({ ...card, used: false })),
     }));
-    addLog(`Ronda ${round + 1}: defensas gastadas se reinician.`);
+    setPhasePlayer("p1");
+    setSelectedToPlay(attacks.p1[0]);
+    goPrivate("p1", "battle");
+    addLog(`Ronda ${round + 1}: todas las cartas vuelven a estar disponibles.`);
   }
 
   function pickCharacter(player: PlayerId, id: CharacterId) {
@@ -941,15 +966,6 @@ export default function Home() {
   useEffect(() => {
     if (!running || winner || screen !== "battle") return;
     const timer = window.setInterval(() => {
-      setPlayers((current) => {
-        const p1Gain = current.p1.character === "charger" ? 0.45 : 0.32;
-        const p2Gain = current.p2.character === "charger" ? 0.45 : 0.32;
-        return {
-          p1: { ...current.p1, energy: clamp(current.p1.energy + p1Gain, 0, 10) },
-          p2: { ...current.p2, energy: clamp(current.p2.energy + p2Gain, 0, 10) },
-        };
-      });
-
       setBlasts((current) => current.map((item) => ({ ...item, ttl: item.ttl - 1 })).filter((item) => item.ttl > 0));
       setPlacedDefenses((current) =>
         current.map((item) => ({ ...item, ttl: item.ttl - 0.25 })).filter((item) => item.ttl > 0 && item.hp > 0),
@@ -1010,7 +1026,7 @@ export default function Home() {
                 ...playersNow,
                 [targetOwner]: {
                   ...playersNow[targetOwner],
-                  energy: clamp(playersNow[targetOwner].energy + 0.5, 0, 10),
+                  baseHp: clamp(playersNow[targetOwner].baseHp + 3, 0, 130),
                 },
               }));
             }
@@ -1178,12 +1194,10 @@ export default function Home() {
               attacks={attacks[phasePlayer]}
               defenses={defenses[phasePlayer]}
               selected={selectedToPlay}
+              usedIds={usedCards[phasePlayer]}
+              allowEdit={false}
               onSelect={(card) => setSelectedToPlay(card)}
-              onEdit={(card) => {
-                setSelectedId(card.id);
-                setRunning(false);
-                setScreen("build");
-              }}
+              onEdit={() => undefined}
             />
             <button className="resetButton" onClick={changeTurn}>cambiar turno</button>
           </aside>
@@ -1192,7 +1206,7 @@ export default function Home() {
             <div className="roundBar">
               <button onClick={() => setRunning((value) => !value)}>{running ? "pausar" : "seguir"}</button>
               <strong>Ronda {round}</strong>
-              <button onClick={nextRound}>siguiente ronda</button>
+              <span>nueva ronda automatica</span>
             </div>
 
             <div className="arenaBoard">
@@ -1281,7 +1295,7 @@ export default function Home() {
           <div className="ruleCard">
             <span>2</span>
             <h2>Cartas por ronda</h2>
-            <p>Primero cada jugador crea sus cartas en privado. Luego se juega por turnos en cinco carriles.</p>
+            <p>Primero cada jugador crea sus cartas en privado. En batalla una carta usada queda gastada hasta la siguiente ronda.</p>
           </div>
           <div className="ruleCard">
             <span>3</span>
@@ -1306,7 +1320,7 @@ function MenuScreen({ onStart, onRules }: { onStart: () => void; onRules: () => 
       <div className="menuHero">
         <span className="eyebrow">duelo local por turnos</span>
         <h2>Crea cartas secretas y rompe la base rival.</h2>
-        <p>Beta de prueba: personajes predeterminados, editor pixelado, cartas privadas y batalla 1 vs 1 por cinco carriles.</p>
+        <p>Beta de prueba: eliges personaje, dibujas tus cartas desde cero, las bloqueas y luego peleas por cinco carriles.</p>
         <div className="menuActions">
           <button onClick={onStart}>empezar juego nuevo</button>
           <button onClick={onRules}>ver reglas</button>
@@ -1379,8 +1393,8 @@ function PlayerStatus({ player, state }: { player: PlayerId; state: PlayerState 
           <i><b style={{ width: `${clamp(state.baseHp, 0, 115) / 1.15}%` }} /></i>
         </label>
         <label>
-          energia
-          <i><b style={{ width: `${state.energy * 10}%` }} /></i>
+          escudo
+          <i><b style={{ width: state.shieldReady ? "100%" : "0%" }} /></i>
         </label>
       </div>
     </div>
@@ -1391,12 +1405,16 @@ function Deck({
   attacks,
   defenses,
   selected,
+  usedIds = [],
+  allowEdit = true,
   onSelect,
   onEdit,
 }: {
   attacks: AttackCard[];
   defenses: DefenseCard[];
   selected: GameCard;
+  usedIds?: string[];
+  allowEdit?: boolean;
   onSelect: (card: GameCard) => void;
   onEdit: (card: GameCard) => void;
 }) {
@@ -1406,8 +1424,8 @@ function Deck({
         <span className="deckLabel">ataques</span>
         {attacks.map((card) => (
           <div key={card.id} className="cardWrap">
-            <CardView card={card} active={selected.id === card.id} onClick={() => onSelect(card)} />
-            <button className="editMini" onClick={() => onEdit(card)}>editar</button>
+            <CardView card={card} active={selected.id === card.id} spent={usedIds.includes(card.id)} onClick={() => !usedIds.includes(card.id) && onSelect(card)} />
+            {allowEdit && <button className="editMini" onClick={() => onEdit(card)}>editar</button>}
           </div>
         ))}
       </div>
@@ -1415,8 +1433,8 @@ function Deck({
         <span className="deckLabel">defensas</span>
         {defenses.map((card) => (
           <div key={card.id} className="cardWrap">
-            <CardView card={card} active={selected.id === card.id} onClick={() => onSelect(card)} />
-            <button className="editMini" onClick={() => onEdit(card)}>editar</button>
+            <CardView card={card} active={selected.id === card.id} spent={usedIds.includes(card.id)} onClick={() => !usedIds.includes(card.id) && onSelect(card)} />
+            {allowEdit && <button className="editMini" onClick={() => onEdit(card)}>editar</button>}
           </div>
         ))}
       </div>
