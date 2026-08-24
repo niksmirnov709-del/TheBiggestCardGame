@@ -1,5 +1,6 @@
 node_modules/
 dist/
+github-pages-dist/
 .next/
 .vinext/
 .wrangler/
