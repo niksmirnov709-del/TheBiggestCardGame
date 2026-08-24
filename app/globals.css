@@ -202,6 +202,7 @@ h1 {
 .hiddenHand i:nth-child(4) { transform: rotate(4deg) translateX(16px); }
 .hiddenHand i:nth-child(5) { transform: rotate(12deg) translateX(52px); }
 .hiddenHand i:nth-child(6) { transform: rotate(20deg) translateX(88px); }
+.hiddenHand i:nth-child(7) { transform: rotate(27deg) translateX(122px); }
 
 .hiddenHand .gone {
   opacity: .18;
@@ -733,6 +734,10 @@ h1 {
   --rarity: #38bdf8;
 }
 
+.card.invisible {
+  --rarity: #22d3ee;
+}
+
 .cardRibbon {
   justify-self: start;
   max-width: calc(100% - 34px);
@@ -996,6 +1001,12 @@ h1 {
   place-items: center;
   border: 2px solid #cbd5e1;
   background: rgba(15, 23, 42, .8);
+}
+
+.defenseToken.invisible {
+  border-color: #22d3ee;
+  background: rgba(8, 47, 73, .72);
+  box-shadow: 0 0 16px rgba(34, 211, 238, .36);
 }
 
 .defenseToken b {

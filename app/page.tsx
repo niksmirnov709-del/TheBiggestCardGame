@@ -19,7 +19,7 @@ import {
 type PlayerId = "p1" | "p2";
 type Screen = "menu" | "cover" | "pick" | "build" | "battle" | "rules";
 type AttackTier = "normal" | "super" | "hyper";
-type DefenseTier = "normal" | "hyper";
+type DefenseTier = "normal" | "hyper" | "invisible";
 type AttackBehavior = "rapido" | "pesado" | "doble" | "cargado" | "rompedefensa" | "fragmenta" | "anulador";
 type AttackSpeed = "rapida" | "media" | "lenta";
 type AttackWeight = "ligera" | "normal" | "pesada";
@@ -83,6 +83,7 @@ type Defense = {
   behavior: DefenseBehavior;
   name: string;
   art: PixelArt;
+  revealed: boolean;
 };
 
 type Blast = {
@@ -342,10 +343,12 @@ const initialDefenses: Record<PlayerId, DefenseCard[]> = {
   p1: [
     { id: "p1-d1", owner: "p1", kind: "defense", tier: "normal", name: "Muro", behavior: "bloqueo", art: [...emptyArt], used: false },
     { id: "p1-d2", owner: "p1", kind: "defense", tier: "hyper", name: "Armadura", behavior: "armadura", art: [...emptyArt], used: false },
+    { id: "p1-d3", owner: "p1", kind: "defense", tier: "invisible", name: "Secreta", behavior: "trampa", art: [...emptyArt], used: false },
   ],
   p2: [
     { id: "p2-d1", owner: "p2", kind: "defense", tier: "normal", name: "Muro", behavior: "bloqueo", art: [...emptyArt], used: false },
     { id: "p2-d2", owner: "p2", kind: "defense", tier: "hyper", name: "Armadura", behavior: "armadura", art: [...emptyArt], used: false },
+    { id: "p2-d3", owner: "p2", kind: "defense", tier: "invisible", name: "Secreta", behavior: "trampa", art: [...emptyArt], used: false },
   ],
 };
 
@@ -404,7 +407,11 @@ function attackStats(card: AttackCard) {
 }
 
 function defenseStats(card: DefenseCard) {
-  const tier = card.tier === "hyper" ? { hp: 76, ttl: 24 } : { hp: 38, ttl: 16 };
+  const tier = {
+    normal: { hp: 38, ttl: 16 },
+    hyper: { hp: 76, ttl: 24 },
+    invisible: { hp: 24, ttl: 10 },
+  }[card.tier];
   const behavior = {
     bloqueo: { hp: 18, ttl: 0 },
     reflector: { hp: -8, ttl: -5 },
@@ -1053,6 +1060,7 @@ export default function Home() {
         behavior: selectedToPlay.behavior,
         name: selectedToPlay.name,
         art: selectedToPlay.art,
+        revealed: selectedToPlay.tier !== "invisible",
       },
     ]);
     setNextId((id) => id + 1);
@@ -1166,6 +1174,11 @@ export default function Home() {
             (item) => item.owner === targetOwner && item.lane === shot.lane && Math.abs(defenseX - shot.x) < 8,
           );
           if (defense) {
+            if (defense.tier === "invisible" && !defense.revealed) {
+              setPlacedDefenses((defs) =>
+                defs.map((item) => (item.id === defense.id ? { ...item, revealed: true } : item)),
+              );
+            }
             const pierce = shot.behavior === "rompedefensa";
             const catchesFast = defense.behavior === "rapida" && shot.speedMode === "rapida";
             const catchesHeavy = defense.behavior === "armadura" && shot.weightMode === "pesada";
@@ -1342,7 +1355,7 @@ export default function Home() {
           <div className="buildIntro">
             <span className="eyebrow">{playerName(phasePlayer)}</span>
             <h2>Crea tus cartas en secreto</h2>
-            <p>Prepara 2 normales, 1 super, 1 hiper y tus 2 defensas. Cuando termines pulsa pasar.</p>
+            <p>Prepara 2 normales, 1 super, 1 hiper y tus 3 defensas. Cuando termines pulsa pasar.</p>
           </div>
           <div className="buildGrid">
             <div className={`cardsColumn ${phasePlayer}`}>
@@ -1376,7 +1389,11 @@ export default function Home() {
         <section className="gameTable">
           <div className="tableTop">
             <PlayerStatus player="p1" state={players.p1} />
-            <OpponentSeat player={otherPlayer(phasePlayer)} used={usedCards[otherPlayer(phasePlayer)].length} />
+            <OpponentSeat
+              player={otherPlayer(phasePlayer)}
+              used={usedCards[otherPlayer(phasePlayer)].length}
+              total={attacks[otherPlayer(phasePlayer)].length + defenses[otherPlayer(phasePlayer)].length}
+            />
             <PlayerStatus player="p2" state={players.p2} />
           </div>
 
@@ -1400,17 +1417,21 @@ export default function Home() {
                   <span className="laneNumber">{lane + 1}</span>
                   {placedDefenses
                     .filter((item) => item.lane === lane)
-                    .map((item) => (
-                      <span
-                        key={item.id}
-                        className={`defenseToken ${item.owner}`}
-                        style={{ left: `${item.owner === "p1" ? 14 : 82}%` }}
-                        title={`${item.name} ${Math.round(item.hp)} vida`}
-                      >
-                        <PixelSprite art={item.art} small />
-                        <b>{Math.round(item.hp)}</b>
-                      </span>
-                    ))}
+                    .map((item) => {
+                      const hiddenFromCurrent = item.tier === "invisible" && item.owner !== phasePlayer && !item.revealed;
+                      if (hiddenFromCurrent) return null;
+                      return (
+                        <span
+                          key={item.id}
+                          className={`defenseToken ${item.owner} ${item.tier}`}
+                          style={{ left: `${item.owner === "p1" ? 14 : 82}%` }}
+                          title={`${item.name} ${Math.round(item.hp)} vida`}
+                        >
+                          <PixelSprite art={item.art} small />
+                          <b>{Math.round(item.hp)}</b>
+                        </span>
+                      );
+                    })}
                   {projectiles
                     .filter((item) => item.lane === lane)
                     .map((item) => (
@@ -1491,7 +1512,7 @@ export default function Home() {
           <div className="ruleCard">
             <span>3</span>
             <h2>Defensas especiales</h2>
-            <p>Hay 2 defensas por jugador: muro, escudo rapido, trampa, reflector, absorbe o armadura. Algunas ayudan mas contra ataques rapidos, lentos o pesados.</p>
+            <p>Hay 3 defensas por jugador, incluida una invisible. La invisible tiene menos vida y dura menos, pero el rival no la ve hasta que se activa.</p>
           </div>
           <div className="ruleCard">
             <span>4</span>
@@ -1565,14 +1586,14 @@ function PickScreen({
   );
 }
 
-function OpponentSeat({ player, used }: { player: PlayerId; used: number }) {
-  const remaining = Math.max(0, 6 - used);
+function OpponentSeat({ player, used, total }: { player: PlayerId; used: number; total: number }) {
+  const remaining = Math.max(0, total - used);
   return (
     <div className={`opponentSeat ${player}`}>
       <span>{playerName(player)}</span>
       <strong>{remaining} cartas</strong>
       <div className="hiddenHand" aria-hidden="true">
-        {Array.from({ length: 6 }).map((_, index) => (
+        {Array.from({ length: total }).map((_, index) => (
           <i key={index} className={index >= remaining ? "gone" : ""} />
         ))}
       </div>
