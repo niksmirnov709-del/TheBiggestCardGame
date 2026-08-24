@@ -23,7 +23,7 @@ type DefenseTier = "normal" | "hyper";
 type AttackBehavior = "rapido" | "pesado" | "doble" | "cargado" | "rompedefensa" | "fragmenta" | "anulador";
 type AttackSpeed = "rapida" | "media" | "lenta";
 type AttackWeight = "ligera" | "normal" | "pesada";
-type DefenseBehavior = "bloqueo" | "reflector" | "absorbe";
+type DefenseBehavior = "bloqueo" | "reflector" | "absorbe" | "trampa" | "rapida" | "armadura";
 type CharacterId = "planner" | "tank" | "shield" | "striker";
 type PaintTool = "pencil" | "eraser" | "fill" | "picker";
 
@@ -66,6 +66,8 @@ type Projectile = {
   size: number;
   tier: AttackTier;
   behavior: AttackBehavior;
+  speedMode: AttackSpeed;
+  weightMode: AttackWeight;
   name: string;
   art: PixelArt;
   charge: number;
@@ -140,9 +142,12 @@ const weightLabels: Record<AttackWeight, string> = {
 };
 
 const defenseLabels: Record<DefenseBehavior, string> = {
-  bloqueo: "bloqueo",
+  bloqueo: "muro",
   reflector: "reflector",
   absorbe: "absorbe dano",
+  trampa: "trampa",
+  rapida: "escudo rapido",
+  armadura: "armadura",
 };
 
 const attackTips: Record<AttackBehavior, string> = {
@@ -156,9 +161,12 @@ const attackTips: Record<AttackBehavior, string> = {
 };
 
 const defenseTips: Record<DefenseBehavior, string> = {
-  bloqueo: "mucha vida para parar golpes directos",
-  reflector: "devuelve ataques que no sean hiper",
+  bloqueo: "mucha vida y funciona contra casi todo",
+  reflector: "devuelve ataques no hiper si no son pesados",
   absorbe: "cura un poco la base al recibir dano",
+  trampa: "sufre menos contra ataques lentos o pesados",
+  rapida: "dura poco, pero para mejor ataques rapidos",
+  armadura: "aguanta mejor golpes pesados y perforantes",
 };
 
 const characters: Record<CharacterId, { name: string; text: string }> = {
@@ -332,12 +340,12 @@ const initialAttacks: Record<PlayerId, AttackCard[]> = {
 
 const initialDefenses: Record<PlayerId, DefenseCard[]> = {
   p1: [
-    { id: "p1-d1", owner: "p1", kind: "defense", tier: "normal", name: "Defensa", behavior: "bloqueo", art: [...emptyArt], used: false },
-    { id: "p1-d2", owner: "p1", kind: "defense", tier: "hyper", name: "Defensa Hiper", behavior: "reflector", art: [...emptyArt], used: false },
+    { id: "p1-d1", owner: "p1", kind: "defense", tier: "normal", name: "Muro", behavior: "bloqueo", art: [...emptyArt], used: false },
+    { id: "p1-d2", owner: "p1", kind: "defense", tier: "hyper", name: "Armadura", behavior: "armadura", art: [...emptyArt], used: false },
   ],
   p2: [
-    { id: "p2-d1", owner: "p2", kind: "defense", tier: "normal", name: "Defensa", behavior: "bloqueo", art: [...emptyArt], used: false },
-    { id: "p2-d2", owner: "p2", kind: "defense", tier: "hyper", name: "Defensa Hiper", behavior: "reflector", art: [...emptyArt], used: false },
+    { id: "p2-d1", owner: "p2", kind: "defense", tier: "normal", name: "Muro", behavior: "bloqueo", art: [...emptyArt], used: false },
+    { id: "p2-d2", owner: "p2", kind: "defense", tier: "hyper", name: "Armadura", behavior: "armadura", art: [...emptyArt], used: false },
   ],
 };
 
@@ -399,8 +407,11 @@ function defenseStats(card: DefenseCard) {
   const tier = card.tier === "hyper" ? { hp: 76, ttl: 24 } : { hp: 38, ttl: 16 };
   const behavior = {
     bloqueo: { hp: 18, ttl: 0 },
-    reflector: { hp: -6, ttl: -4 },
+    reflector: { hp: -8, ttl: -5 },
     absorbe: { hp: -2, ttl: 5 },
+    trampa: { hp: -10, ttl: -2 },
+    rapida: { hp: -18, ttl: -8 },
+    armadura: { hp: 24, ttl: 4 },
   }[card.behavior];
   return {
     hp: Math.max(14, tier.hp + behavior.hp),
@@ -807,6 +818,7 @@ function CardEditor({
                 <strong>{selected.tier.toUpperCase()}</strong>
                 <span>vida {defenseStats(selected).hp}</span>
                 <span>dura {defenseStats(selected).ttl}s</span>
+                <span>tipo {defenseLabels[selected.behavior]}</span>
                 <small>{defenseTips[selected.behavior]}.</small>
               </div>
             </>
@@ -999,6 +1011,8 @@ export default function Home() {
         size: stats.size,
         tier: selectedToPlay.tier,
         behavior: selectedToPlay.behavior,
+        speedMode: selectedToPlay.speedMode,
+        weightMode: selectedToPlay.weightMode,
         name: selectedToPlay.name,
         art: selectedToPlay.art,
         charge: stats.charge,
@@ -1153,19 +1167,38 @@ export default function Home() {
           );
           if (defense) {
             const pierce = shot.behavior === "rompedefensa";
-            const dealt = pierce ? shot.damage * 1.7 : shot.damage;
+            const catchesFast = defense.behavior === "rapida" && shot.speedMode === "rapida";
+            const catchesHeavy = defense.behavior === "armadura" && shot.weightMode === "pesada";
+            const trapTrigger = defense.behavior === "trampa" && (shot.speedMode === "lenta" || shot.weightMode === "pesada");
+            let dealt = pierce ? shot.damage * 1.7 : shot.damage;
+            let remainingShotHp = pierce ? shot.hp - 8 : 0;
+            let label = pierce ? "ROMPE" : "HIT";
+            if (catchesFast) {
+              dealt *= 0.45;
+              label = "RAPIDO";
+            }
+            if (trapTrigger) {
+              dealt *= 0.35;
+              remainingShotHp = 0;
+              label = "TRAMPA";
+            }
+            if (catchesHeavy) {
+              dealt *= 0.5;
+              remainingShotHp = pierce ? shot.hp - 22 : 0;
+              label = "ARMADURA";
+            }
             defenseDamage.set(defense.id, (defenseDamage.get(defense.id) ?? 0) + dealt);
-            changed[i] = { ...shot, hp: pierce ? shot.hp - 8 : 0 };
+            changed[i] = { ...shot, hp: remainingShotHp };
             newBlasts.push({
               id: nextId + i,
               lane: shot.lane,
               x: shot.x,
               ttl: 6,
               color: primaryColor(shot.art, "#facc15"),
-              label: pierce ? "ROMPE" : "HIT",
+              label,
               kind: "hit",
             });
-            if (defense.behavior === "reflector" && shot.tier !== "hyper") {
+            if (defense.behavior === "reflector" && shot.tier !== "hyper" && shot.weightMode !== "pesada") {
               reflected.push({
                 ...shot,
                 id: nextId + 50 + i,
@@ -1458,7 +1491,7 @@ export default function Home() {
           <div className="ruleCard">
             <span>3</span>
             <h2>Defensas especiales</h2>
-            <p>Hay 2 defensas por jugador: una normal y una hiper. Se colocan en carriles y con el tiempo desaparecen.</p>
+            <p>Hay 2 defensas por jugador: muro, escudo rapido, trampa, reflector, absorbe o armadura. Algunas ayudan mas contra ataques rapidos, lentos o pesados.</p>
           </div>
           <div className="ruleCard">
             <span>4</span>
