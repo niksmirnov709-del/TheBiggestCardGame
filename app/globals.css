@@ -964,6 +964,58 @@ h1 {
   margin-bottom: 10px;
 }
 
+.battleModifiers {
+  width: min(760px, 100%);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 auto 8px;
+}
+
+.battleModifiers span {
+  min-height: 30px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255,255,255,.16);
+  border-radius: 7px;
+  background: rgba(8, 13, 24, .74);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 950;
+  text-align: center;
+  text-transform: uppercase;
+  box-shadow: 0 6px 16px rgba(0,0,0,.22);
+}
+
+.battleModifiers .hotMod {
+  border-color: rgba(250, 204, 21, .74);
+  color: #facc15;
+}
+
+.battleModifiers .shieldMod {
+  border-color: rgba(56, 189, 248, .74);
+  color: #7dd3fc;
+}
+
+.battleModifiers .tensionMod {
+  position: relative;
+  overflow: hidden;
+}
+
+.battleModifiers .tensionMod::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .24;
+  background: linear-gradient(90deg, #22c55e, #facc15, #fb7185);
+}
+
+.battleModifiers .tensionMod.danger {
+  border-color: rgba(251, 113, 133, .86);
+  color: #fecdd3;
+  animation: alertPulse 680ms steps(2) infinite;
+}
+
 .roundBar span {
   color: #94a3b8;
   font-size: 11px;
@@ -1019,6 +1071,14 @@ h1 {
     rgba(24, 34, 54, .76);
 }
 
+.lane.hotLane {
+  box-shadow: inset 0 0 0 2px rgba(250, 204, 21, .28), inset 0 0 34px rgba(250, 204, 21, .16);
+}
+
+.lane.shieldLane {
+  box-shadow: inset 0 0 0 2px rgba(56, 189, 248, .28), inset 0 0 34px rgba(56, 189, 248, .16);
+}
+
 .lane.readyLane:hover {
   border-color: #ffffff;
   box-shadow: inset 0 0 0 2px rgba(250,204,21,.24), inset 0 0 28px rgba(250,204,21,.22);
@@ -1046,6 +1106,59 @@ h1 {
   padding: 2px 7px;
   text-transform: uppercase;
   box-shadow: 2px 2px 0 rgba(0,0,0,.45);
+}
+
+.laneBadge,
+.dangerPip {
+  position: absolute;
+  z-index: 4;
+  min-width: 30px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(0,0,0,.62);
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+  box-shadow: 2px 2px 0 rgba(0,0,0,.38);
+}
+
+.laneBadge {
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+}
+
+.laneBadge.hot {
+  background: #facc15;
+  color: #111827;
+}
+
+.laneBadge.shield {
+  top: auto;
+  bottom: 8px;
+  background: #38bdf8;
+  color: #082f49;
+}
+
+.dangerPip {
+  top: 50%;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  color: #ffffff;
+  transform: translateY(-50%);
+}
+
+.dangerPip.p1 {
+  left: 16px;
+  background: #fb7185;
+}
+
+.dangerPip.p2 {
+  right: 16px;
+  background: #38bdf8;
 }
 
 .laneNumber {
@@ -1233,7 +1346,8 @@ h1 {
 }
 
 .selectedPlay {
-  display: flex;
+  display: grid;
+  grid-template-columns: 34px minmax(120px, 1fr) auto;
   align-items: center;
   gap: 10px;
   margin-top: 10px;
@@ -1263,6 +1377,26 @@ h1 {
   margin-left: auto;
   color: #94a3b8;
   font-weight: 900;
+  text-transform: uppercase;
+}
+
+.selectedStats {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.selectedStats b {
+  min-height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 5px;
+  background: rgba(255,255,255,.06);
+  color: #dbeafe;
+  font-size: 10px;
+  font-weight: 950;
   text-transform: uppercase;
 }
 
@@ -1645,6 +1779,15 @@ h1 {
   }
 }
 
+@keyframes alertPulse {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.35);
+  }
+}
+
 @media (max-width: 1180px) {
   .battleLayout,
   .cardsScreen,
@@ -1673,6 +1816,7 @@ h1 {
   .sidePanel,
   .editorGrid,
   .rulesScreen,
+  .battleModifiers,
   .pickScreen .characterPick {
     grid-template-columns: 1fr;
   }
