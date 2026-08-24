@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 type PlayerId = "p1" | "p2";
-type Tab = "arena" | "cartas" | "reglas";
+type Screen = "menu" | "cover" | "pick" | "build" | "battle" | "rules";
 type AttackTier = "normal" | "super" | "hyper";
 type DefenseTier = "normal" | "hyper";
 type AttackBehavior = "rapido" | "pesado" | "doble" | "cargado" | "rompedefensa";
@@ -299,6 +299,14 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
+function playerName(player: PlayerId) {
+  return player === "p1" ? "Jugador 1" : "Jugador 2";
+}
+
+function otherPlayer(player: PlayerId): PlayerId {
+  return player === "p1" ? "p2" : "p1";
+}
+
 function attackStats(card: AttackCard) {
   const tier = {
     normal: { cost: 2, damage: 11, hp: 10, speed: 8, size: 22, charge: 0 },
@@ -480,6 +488,10 @@ function CardEditor({
     else onDefenseChange({ ...selected, art: next });
   }
 
+  function applyTemplate(template: PixelArt) {
+    updateArt(template);
+  }
+
   return (
     <section className="editorPanel">
       <div className="sectionTitle">
@@ -493,6 +505,29 @@ function CardEditor({
             nombre
             <input value={selected.name} onChange={(event) => updateName(event.target.value)} />
           </label>
+
+          <div className="templateBox">
+            <span>plantillas rapidas</span>
+            <div>
+              {(selected.kind === "attack"
+                ? [
+                    ["rayo", art.bolt],
+                    ["cometa", art.comet],
+                    ["taladro", art.drill],
+                    ["astilla", art.shard],
+                  ]
+                : [
+                    ["muro", art.wall],
+                    ["prisma", art.prism],
+                    ["muro color", tint(art.wall, primaryColor(selected.art, "#38bdf8"))],
+                  ]
+              ).map(([name, template]) => (
+                <button key={name as string} onClick={() => applyTemplate(template as PixelArt)}>
+                  {name as string}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {selected.kind === "attack" ? (
             <>
@@ -514,6 +549,7 @@ function CardEditor({
                 <span>coste {attackStats(selected).cost}</span>
                 <span>dano {attackStats(selected).damage}</span>
                 <span>velocidad {attackStats(selected).speed.toFixed(1)}</span>
+                <small>{attackLabels[selected.behavior]} anima el dibujo automaticamente por el carril.</small>
               </div>
             </>
           ) : (
@@ -535,6 +571,7 @@ function CardEditor({
                 <strong>{selected.tier.toUpperCase()}</strong>
                 <span>vida {defenseStats(selected).hp}</span>
                 <span>dura {defenseStats(selected).ttl}s</span>
+                <small>{defenseLabels[selected.behavior]} solo sirve en el carril donde la colocas.</small>
               </div>
             </>
           )}
@@ -578,7 +615,9 @@ function CharacterPick({
 }
 
 export default function Home() {
-  const [tab, setTab] = useState<Tab>("arena");
+  const [screen, setScreen] = useState<Screen>("menu");
+  const [phasePlayer, setPhasePlayer] = useState<PlayerId>("p1");
+  const [coverNext, setCoverNext] = useState<Screen>("pick");
   const [attacks, setAttacks] = useState<Record<PlayerId, AttackCard[]>>(initialAttacks);
   const [defenses, setDefenses] = useState<Record<PlayerId, DefenseCard[]>>(initialDefenses);
   const [selectedId, setSelectedId] = useState("p1-a1");
@@ -593,6 +632,7 @@ export default function Home() {
   const [round, setRound] = useState(1);
   const [running, setRunning] = useState(true);
   const [nextId, setNextId] = useState(1);
+  const [log, setLog] = useState<string[]>(["Beta lista: empieza una partida nueva."]);
 
   const allCards = useMemo(
     () => [...attacks.p1, ...attacks.p2, ...defenses.p1, ...defenses.p2],
@@ -600,6 +640,48 @@ export default function Home() {
   );
   const selectedForEdit = allCards.find((card) => card.id === selectedId) ?? attacks.p1[0];
   const winner = players.p1.baseHp <= 0 ? "Jugador 2" : players.p2.baseHp <= 0 ? "Jugador 1" : "";
+
+  function addLog(message: string) {
+    setLog((current) => [message, ...current].slice(0, 6));
+  }
+
+  function goPrivate(player: PlayerId, next: Screen) {
+    setPhasePlayer(player);
+    setCoverNext(next);
+    setScreen("cover");
+  }
+
+  function enterPrivateScreen() {
+    setScreen(coverNext);
+    if (coverNext === "battle") {
+      const firstCard = attacks[phasePlayer][0];
+      setSelectedToPlay(firstCard);
+      addLog(`${playerName(phasePlayer)} tiene el turno.`);
+    }
+    if (coverNext === "build") {
+      setSelectedId(attacks[phasePlayer][0].id);
+    }
+  }
+
+  function newGame() {
+    setAttacks(initialAttacks);
+    setDefenses(initialDefenses);
+    setPlayers({
+      p1: { baseHp: 100, energy: 6, character: "planner", shieldReady: true },
+      p2: { baseHp: 100, energy: 6, character: "planner", shieldReady: true },
+    });
+    setProjectiles([]);
+    setPlacedDefenses([]);
+    setBlasts([]);
+    setRound(1);
+    setRunning(false);
+    setNextId(1);
+    setPhasePlayer("p1");
+    setSelectedId("p1-a1");
+    setSelectedToPlay(initialAttacks.p1[0]);
+    setLog(["Nueva partida: Jugador 1 elige personaje."]);
+    setScreen("pick");
+  }
 
   function updateAttack(card: AttackCard) {
     setAttacks((current) => ({
@@ -632,6 +714,7 @@ export default function Home() {
 
   function playLane(lane: number) {
     if (winner) return;
+    if (selectedToPlay.owner !== phasePlayer || screen !== "battle") return;
     if (selectedToPlay.kind === "attack") {
       const stats = attackStats(selectedToPlay);
       if (!spendEnergy(selectedToPlay.owner, stats.cost)) return;
@@ -653,6 +736,7 @@ export default function Home() {
       }));
       setProjectiles((current) => [...current, ...created]);
       setNextId((id) => id + 3);
+      addLog(`${playerName(selectedToPlay.owner)} lanzo ${selectedToPlay.name} en carril ${lane + 1}.`);
       return;
     }
 
@@ -678,19 +762,11 @@ export default function Home() {
     ]);
     setNextId((id) => id + 1);
     updateDefense({ ...selectedToPlay, used: true });
+    addLog(`${playerName(selectedToPlay.owner)} puso ${selectedToPlay.name} en carril ${lane + 1}.`);
   }
 
   function resetMatch() {
-    setPlayers({
-      p1: { baseHp: 100, energy: 6, character: "planner", shieldReady: true },
-      p2: { baseHp: 115, energy: 6, character: "tank", shieldReady: true },
-    });
-    setProjectiles([]);
-    setPlacedDefenses([]);
-    setBlasts([]);
-    setRound(1);
-    setRunning(true);
-    setDefenses(initialDefenses);
+    newGame();
   }
 
   function nextRound() {
@@ -705,6 +781,7 @@ export default function Home() {
       p1: current.p1.map((card) => ({ ...card, used: false })),
       p2: current.p2.map((card) => ({ ...card, used: false })),
     }));
+    addLog(`Ronda ${round + 1}: defensas gastadas se reinician.`);
   }
 
   function pickCharacter(player: PlayerId, id: CharacterId) {
@@ -721,8 +798,34 @@ export default function Home() {
     });
   }
 
+  function finishPick() {
+    addLog(`${playerName(phasePlayer)} eligio ${characters[players[phasePlayer].character].name}.`);
+    if (phasePlayer === "p1") goPrivate("p2", "pick");
+    else goPrivate("p1", "build");
+  }
+
+  function finishBuild() {
+    addLog(`${playerName(phasePlayer)} cerro sus cartas.`);
+    if (phasePlayer === "p1") goPrivate("p2", "build");
+    else {
+      setRunning(true);
+      goPrivate("p1", "battle");
+    }
+  }
+
+  function changeTurn() {
+    const next = otherPlayer(phasePlayer);
+    setRunning(false);
+    goPrivate(next, "battle");
+  }
+
+  function continueBattle() {
+    setRunning(true);
+    enterPrivateScreen();
+  }
+
   useEffect(() => {
-    if (!running || winner) return;
+    if (!running || winner || screen !== "battle") return;
     const timer = window.setInterval(() => {
       setPlayers((current) => {
         const p1Gain = current.p1.character === "charger" ? 0.45 : 0.32;
@@ -857,39 +960,96 @@ export default function Home() {
     }, 250);
 
     return () => window.clearInterval(timer);
-  }, [running, winner, placedDefenses, nextId]);
+  }, [running, winner, placedDefenses, nextId, screen]);
 
   return (
     <main className="app">
       <header className="hud">
         <div>
-          <span className="eyebrow">Prueba de idea</span>
+          <span className="eyebrow">Beta local 1 vs 1</span>
           <h1>Card Lane Duel</h1>
         </div>
-        <nav className="tabs" aria-label="Pantallas">
-          {(["arena", "cartas", "reglas"] as Tab[]).map((item) => (
-            <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>
-              {item}
-            </button>
-          ))}
+        <nav className="tabs" aria-label="Menu">
+          <button className={screen === "menu" ? "active" : ""} onClick={() => setScreen("menu")}>menu</button>
+          <button className={screen === "rules" ? "active" : ""} onClick={() => setScreen("rules")}>reglas</button>
+          <button onClick={newGame}>nuevo juego</button>
         </nav>
       </header>
 
-      {tab === "arena" && (
+      {screen === "menu" && <MenuScreen onStart={newGame} onRules={() => setScreen("rules")} />}
+
+      {screen === "cover" && (
+        <CoverScreen
+          player={phasePlayer}
+          next={coverNext}
+          onEnter={coverNext === "battle" ? continueBattle : enterPrivateScreen}
+        />
+      )}
+
+      {screen === "pick" && (
+        <PickScreen
+          player={phasePlayer}
+          state={players[phasePlayer]}
+          onPick={(id) => pickCharacter(phasePlayer, id)}
+          onDone={finishPick}
+        />
+      )}
+
+      {screen === "build" && (
+        <section className="buildScreen">
+          <div className="buildIntro">
+            <span className="eyebrow">{playerName(phasePlayer)}</span>
+            <h2>Crea tus cartas en secreto</h2>
+            <p>Prepara 2 normales, 1 super, 1 hiper y tus 2 defensas. Cuando termines pulsa pasar.</p>
+          </div>
+          <div className="buildGrid">
+            <div className={`cardsColumn ${phasePlayer}`}>
+              <h2>Tu mazo</h2>
+              <Deck
+                attacks={attacks[phasePlayer]}
+                defenses={defenses[phasePlayer]}
+                selected={selectedForEdit}
+                onSelect={(card) => setSelectedId(card.id)}
+                onEdit={(card) => setSelectedId(card.id)}
+              />
+            </div>
+            <CardEditor
+              selected={selectedForEdit.owner === phasePlayer ? selectedForEdit : attacks[phasePlayer][0]}
+              attacks={attacks}
+              defenses={defenses}
+              onAttackChange={updateAttack}
+              onDefenseChange={updateDefense}
+            />
+            <div className="secretPanel">
+              <span>cartas enemigas ocultas</span>
+              <strong>????</strong>
+              <p>Esta pantalla es solo para {playerName(phasePlayer)}. El otro jugador no deberia mirar hasta que pulses pasar.</p>
+              <button className="resetButton" onClick={finishBuild}>pasar al otro jugador</button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {screen === "battle" && (
         <section className="battleLayout">
-          <aside className="sidePanel left">
-            <PlayerStatus player="p1" state={players.p1} />
-            <CharacterPick player="p1" state={players.p1} onPick={(id) => pickCharacter("p1", id)} />
+          <aside className={`sidePanel ${phasePlayer === "p1" ? "left" : "right"}`}>
+            <div className="turnBanner">
+              <span>turno actual</span>
+              <strong>{playerName(phasePlayer)}</strong>
+            </div>
+            <PlayerStatus player={phasePlayer} state={players[phasePlayer]} />
             <Deck
-              attacks={attacks.p1}
-              defenses={defenses.p1}
+              attacks={attacks[phasePlayer]}
+              defenses={defenses[phasePlayer]}
               selected={selectedToPlay}
               onSelect={(card) => setSelectedToPlay(card)}
               onEdit={(card) => {
                 setSelectedId(card.id);
-                setTab("cartas");
+                setRunning(false);
+                setScreen("build");
               }}
             />
+            <button className="resetButton" onClick={changeTurn}>cambiar turno</button>
           </aside>
 
           <section className="arenaPanel">
@@ -962,56 +1122,18 @@ export default function Home() {
             </div>
           </section>
 
-          <aside className="sidePanel right">
+          <aside className="sidePanel lockedPanel">
+            <PlayerStatus player="p1" state={players.p1} />
             <PlayerStatus player="p2" state={players.p2} />
-            <CharacterPick player="p2" state={players.p2} onPick={(id) => pickCharacter("p2", id)} />
-            <Deck
-              attacks={attacks.p2}
-              defenses={defenses.p2}
-              selected={selectedToPlay}
-              onSelect={(card) => setSelectedToPlay(card)}
-              onEdit={(card) => {
-                setSelectedId(card.id);
-                setTab("cartas");
-              }}
-            />
+            <div className="battleLog">
+              <span className="deckLabel">bitacora</span>
+              {log.map((entry) => <p key={entry}>{entry}</p>)}
+            </div>
           </aside>
         </section>
       )}
 
-      {tab === "cartas" && (
-        <section className="cardsScreen">
-          <div className="cardsColumn">
-            <h2>Jugador 1</h2>
-            <Deck
-              attacks={attacks.p1}
-              defenses={defenses.p1}
-              selected={selectedForEdit}
-              onSelect={(card) => setSelectedId(card.id)}
-              onEdit={(card) => setSelectedId(card.id)}
-            />
-          </div>
-          <CardEditor
-            selected={selectedForEdit}
-            attacks={attacks}
-            defenses={defenses}
-            onAttackChange={updateAttack}
-            onDefenseChange={updateDefense}
-          />
-          <div className="cardsColumn">
-            <h2>Jugador 2</h2>
-            <Deck
-              attacks={attacks.p2}
-              defenses={defenses.p2}
-              selected={selectedForEdit}
-              onSelect={(card) => setSelectedId(card.id)}
-              onEdit={(card) => setSelectedId(card.id)}
-            />
-          </div>
-        </section>
-      )}
-
-      {tab === "reglas" && (
+      {screen === "rules" && (
         <section className="rulesScreen">
           <div className="ruleCard">
             <span>1</span>
@@ -1021,7 +1143,7 @@ export default function Home() {
           <div className="ruleCard">
             <span>2</span>
             <h2>Cartas por ronda</h2>
-            <p>Cada jugador usa 2 ataques normales, 1 super y 1 hiper. La siguiente ronda puede cambiar la idea.</p>
+            <p>Primero cada jugador crea sus cartas en privado. Luego se juega por turnos en cinco carriles.</p>
           </div>
           <div className="ruleCard">
             <span>3</span>
@@ -1033,10 +1155,78 @@ export default function Home() {
             <h2>Dibujo libre, reglas claras</h2>
             <p>Dibujas el sprite en pixel art. El juego solo necesita saber su comportamiento para animarlo y balancearlo.</p>
           </div>
-          <button className="resetButton" onClick={resetMatch}>reiniciar partida</button>
+          <button className="resetButton" onClick={resetMatch}>empezar partida nueva</button>
         </section>
       )}
     </main>
+  );
+}
+
+function MenuScreen({ onStart, onRules }: { onStart: () => void; onRules: () => void }) {
+  return (
+    <section className="menuScreen">
+      <div className="menuHero">
+        <span className="eyebrow">duelo local por turnos</span>
+        <h2>Crea cartas secretas y rompe la base rival.</h2>
+        <p>Beta de prueba: personajes predeterminados, editor pixelado, cartas privadas y batalla 1 vs 1 por cinco carriles.</p>
+        <div className="menuActions">
+          <button onClick={onStart}>empezar juego nuevo</button>
+          <button onClick={onRules}>ver reglas</button>
+        </div>
+      </div>
+      <div className="menuPreview">
+        {lanes.map((lane) => (
+          <span key={lane}>
+            <i />
+            <b />
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CoverScreen({
+  player,
+  next,
+  onEnter,
+}: {
+  player: PlayerId;
+  next: Screen;
+  onEnter: () => void;
+}) {
+  const action = next === "pick" ? "elegir personaje" : next === "build" ? "crear cartas" : "jugar turno";
+  return (
+    <section className="coverScreen">
+      <span className="eyebrow">pantalla privada</span>
+      <h2>Que mire solo {playerName(player)}</h2>
+      <p>El otro jugador debe apartarse un momento. Al pulsar el boton se mostrara su parte secreta para {action}.</p>
+      <button onClick={onEnter}>soy {playerName(player)}</button>
+    </section>
+  );
+}
+
+function PickScreen({
+  player,
+  state,
+  onPick,
+  onDone,
+}: {
+  player: PlayerId;
+  state: PlayerState;
+  onPick: (id: CharacterId) => void;
+  onDone: () => void;
+}) {
+  return (
+    <section className="pickScreen">
+      <div className="buildIntro">
+        <span className="eyebrow">{playerName(player)}</span>
+        <h2>Elige personaje antes de crear cartas</h2>
+        <p>Cada personaje cambia la partida un poco. Todavia son simples, pero ya dan identidad al estilo de juego.</p>
+      </div>
+      <CharacterPick player={player} state={state} onPick={onPick} />
+      <button className="resetButton" onClick={onDone}>confirmar personaje</button>
+    </section>
   );
 }
 
